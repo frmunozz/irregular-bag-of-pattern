@@ -14,6 +14,7 @@ if __name__ == '__main__':
     parser.add_argument("-n2", "--nTest", dest="n2", help="size of test set", required=True, type=int)
     parser.add_argument("-c", "--classes", dest="c", help="number of classes", required=True, type=int)
     parser.add_argument("-p", "--nProcess", dest="n_process", help="number of process", required=True, type=int)
+    parser.add_argument("-distType", dest="dist_type", help="distance funcion name to use", required=False, type=str)
 
     args = parser.parse_args()
     in_folder = args.path + "plasticc_sub_dataset/"
@@ -23,8 +24,12 @@ if __name__ == '__main__':
     c = args.c
     n_process = args.n_process
 
+    dist_type = "dtw"
+    if args.dist_type:
+        dist_type = args.dist_type
+
     ini = time.time()
-    dmatrix = dmatrix_multiprocessing(in_folder, n1, n2, c, n_process, out_folder)
+    dmatrix = dmatrix_multiprocessing(in_folder, n1, n2, c, n_process, out_folder, dist_type=dist_type)
     end = time.time()
 
     print("dmatrix shape: ", dmatrix.shape)
