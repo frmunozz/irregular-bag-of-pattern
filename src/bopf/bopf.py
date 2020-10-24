@@ -50,8 +50,19 @@ def _load_pandas(path,  **kwargs):
     return dataset, times_arr, labels, len(dataset)
 
 
+def _load_numpy(data_path, **kwargs):
+    n1 = kwargs.get("n1")
+    n2 = kwargs.get("n2")
+    c = kwargs.get("c")
+    set_type = kwargs.get("set_type")
+    dataset = np.load(data_path + "{}_d_n{}_c{}.npy".format(set_type, n1, c), allow_pickle=True)
+    times = np.load(data_path + "{}_t_n{}_c{}.npy".format(set_type, n1, c), allow_pickle=True)
+    labels = np.load(data_path + "{}_l_n{}_c{}.npy".format(set_type, n1, c), allow_pickle=True)
+    return dataset, times, labels, len(dataset)
+
+
 class BagOfPatternFeature(object):
-    def __init__(self):
+    def __init__(self, special_character=True):
         self.dataset = []
         self.times = []
         self.labels = []
@@ -74,6 +85,8 @@ class BagOfPatternFeature(object):
         self.best_score = -1
         self.best2_idx = -1
         self.best2_score = -1
+        self.class_positions = {}
+        self.special_character = special_character
 
     def load_dataset(self, dataset_path, fmt="pandas", **kwargs):
         if fmt == "pandas":
@@ -81,6 +94,8 @@ class BagOfPatternFeature(object):
 
         elif fmt == "file":
             self.dataset, self.times, self.labels, self.m = _load_file(dataset_path, **kwargs)
+        elif fmt == "npy":
+            self.dataset, self.times, self.labels, self.m = _load_numpy(dataset_path, **kwargs)
         else:
             raise ValueError("fmt unknown")
 
@@ -142,8 +157,51 @@ class BagOfPatternFeature(object):
         #     print("after: ", time_stamps[seg_j], time_stamps[seq_i], seg_window * (w_i + 1))
         return seg_j
 
-    def bop(self, wd, wl, tol=1):
-        self.bopsize = 1 << (2 * (wd + 1))
+    def bop_paper(self, wd, wl):
+        self.bopsize = 1 << (2 * wd)
+        self.train_bop = np.zeros((self.m * self.bopsize) + 1)
+        for i in range(self.m):
+            pword = -1
+            data = self.dataset[i]
+            n = data.size
+            wl_n = int(round(wl * n))
+            ns = wl_n / wd
+            print(wl_n, ns)
+            cum1_data = self.cum1[i]
+            cum2_data = self.cum2[i]
+            for j in range(n - wl_n + 1):
+                sumx = cum1_data[j + wl_n] - cum1_data[j]
+                sumx2 = cum2_data[j + wl_n] - cum2_data[j]
+                meanx = sumx / wl_n
+                sigmax = np.sqrt(sumx2 / wl_n - meanx*meanx)
+                wordp = 0
+                for k in range(wd):
+                    u = int(round(ns * (k + 1)))
+                    l = int(round(ns * k))
+                    sumsub = cum1_data[j + u] - cum1_data[j + l]
+                    avgsub = sumsub / (u - l)
+                    paa = (avgsub - meanx) / sigmax
+                    if paa < 0:
+                        if paa < -0.67:
+                            val = 0
+                        else:
+                            val = 1
+                    else:
+                        if paa < 0.67:
+                            val = 2
+                        else:
+                            val = 3
+                    ws = (1 << (1 * k))*val
+                    wordp += ws
+                if pword != wordp:
+                    self.train_bop[i + wordp * self.m] += 1
+                    pword = wordp
+
+    def bop(self, wd, wl, tol=1, verbose=True):
+        if self.special_character:
+            self.bopsize = 1 << (2 * (wd + 1))
+        else:
+            self.bopsize = 1 << (2 * wd)
         self.train_bop = np.zeros((self.m * self.bopsize) + 1)
         count_empty_segments = 0
         for k in range(self.m):
@@ -162,8 +220,10 @@ class BagOfPatternFeature(object):
                     break
                 sumx = cum1_data[seq_j] - cum1_data[seq_i]
                 sumx2 = cum2_data[seq_j] - cum2_data[seq_i]
-                meanx = (1.0*sumx) / (seq_j - seq_i)
-                sigmax = np.sqrt((sumx2 / (seq_j-seq_i)) - meanx * meanx)
+                meanx = sumx / (seq_j - seq_i)
+                # if round(sumx2 / (seq_j-seq_i), 5) < round(meanx * meanx, 5):
+                #     print(k, i, j, seq_i, seq_j, meanx, meanx*meanx, sumx2, sumx2 / (seq_j - seq_i))
+                sigmax = np.sqrt(round(sumx2 / (seq_j-seq_i), 15) - round(meanx * meanx, 15))
                 wordp = 0
                 seg_j = seq_i
                 seg_window = window / wd
@@ -178,8 +238,11 @@ class BagOfPatternFeature(object):
                     else:
                         sumsub = cum1_data[seg_j] - cum1_data[seg_i]
                         avgsub = sumsub / (seg_j - seg_i)
-                        paa = (avgsub - meanx) / sigmax
-                        # if k == 34 and seq_i == 270:
+                        if False: #sigmax == 0:
+                            paa = 0
+                        else:
+                            paa = (avgsub - meanx) / sigmax
+                        # if k == 0 and seq_i >= 0:
                         #     print("i: {}, j: {}, seg_i: {}, seg_j: {}, seg_win: {}, offset: {}, paa: {}".format(seq_i, seq_j, seg_i,
                         #                                                                            seg_j, seg_window, seg_window * (w_i + 1), paa))
                         if paa < 0:
@@ -197,23 +260,26 @@ class BagOfPatternFeature(object):
                 if pword != wordp:
                     self.train_bop[k + wordp*self.m] += 1
                     pword = wordp
-        print("TOTAL DE SEGMENTOS VACIOS: ", count_empty_segments)
+        if verbose:
+            print("TOTAL DE SEGMENTOS VACIOS: ", count_empty_segments)
 
     def adjust_label_set(self):
         self.train_label_index = np.zeros(self.m, dtype=int)
         self.tlabel = np.sort(np.unique(self.labels))
         self.c = self.tlabel.shape[0]
         self.class_count = np.zeros(self.c)
+        self.class_positions = defaultdict(list)
         for i in range(self.m):
             position = int(np.where(self.tlabel == self.labels[i])[0][0])
             self.train_label_index[i] = position
+            self.class_positions[self.tlabel[position]].append(i)
             self.class_count[position] += 1
 
-    def anova(self):
+    def anova(self, verbose=True):
         self.bop_f_a = np.zeros(self.bopsize)
         bop_f_a_i = 0
         for j in range(self.bopsize):
-            if j % 100 == 0:
+            if j % 100 == 0 and verbose:
                 print("{}/{}".format(j, self.bopsize), end="\r")
             sumall = 0.0
             sumc = np.zeros(self.c)
@@ -238,41 +304,54 @@ class BagOfPatternFeature(object):
             msw = 1.0 * ssw / (self.m - self.c)
             if msa == 0 and msw == 0:
                 self.bop_f_a[bop_f_a_i] = 0
+            elif msw == 0 and msa != 0:
+                self.bop_f_a[bop_f_a_i] = np.inf
             else:
-                self.bop_f_a[bop_f_a_i] = msa / msw
+                self.bop_f_a[bop_f_a_i] = np.round(msa / msw, 5)
+
+            # if msa != 0 or msw != 0:
+            #     print("j={}, msw={}, msw={}".format(j, msa, msw))
             bop_f_a_i += 1
 
     def anova_sort(self):
         self.sort_index = np.argsort(self.bop_f_a)[::-1]
+
         self.fea_num = 0
         while self.bop_f_a[self.sort_index[self.fea_num]] > 0:
             self.fea_num += 1
 
-    def sort_trim_arr(self):
+    def sort_trim_arr(self, verbose=True):
         train_bop_sort = []
-        for j in range(self.bopsize):
-            if j % 100 == 0:
-                print("{}/{}".format(j, self.bopsize), end="\r")
+        for j in range(self.fea_num):
+            if j % 100 == 0 and verbose:
+                print("{}/{}".format(j, self.fea_num), end="\r")
             k = self.sort_index[j]
             for i in range(self.m):
                 train_bop_sort.append(self.train_bop[i + k * self.m])
         self.train_bop_sort = np.array(train_bop_sort)
 
-    def crossVL(self):
+    def crossVL(self, verbose=True):
         x = np.zeros((self.c, self.fea_num))
         y = np.zeros((self.m, self.c))
         self.crossL = []
         maxcount = -1
         maxk = -1
         for k in range(self.fea_num):
-            print("{}/{}".format(k, self.fea_num), end="\r")
+            if verbose:
+                print("{}/{}".format(k, self.fea_num), end="\r")
             count = 0
             for i in range(self.m):
                 p = self.train_label_index[i]
+                # if k == 0:
+                    # print("train_bop_sort k={}, i={} :".format(k, i), self.train_bop_sort[i + k*self.m])
                 x[p][k] += self.train_bop_sort[i + k * self.m]
+
+            # print("x for k =", k, " :", x[:, k])
+
             for i in range(self.c):
                 x[i][k] = x[i][k] / self.class_count[i]
                 self.crossL.append(x[i][k])
+
             for i in range(self.m):
                 rmin = np.inf
                 label = 0.0
@@ -339,10 +418,11 @@ class BagOfPatternFeature(object):
                     y1[i][j] = r1
                     y2[i][j] = r2
                     y3[i][j] = r3
-                    r = r1*r1 / (r2*r3)
-                    if r > rmax:
-                        rmax = r
-                        label = j
+                    if r2 != 0 and r3 != 0:
+                        r = r1*r1 / (r2*r3)
+                        if r > rmax:
+                            rmax = r
+                            label = j
                 if label == self.train_label_index[i]:
                     count += 1
             if count >= maxcount:

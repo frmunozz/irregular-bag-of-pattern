@@ -42,3 +42,14 @@ def adjust_labels(labels):
     count_sort_best_index = np.argsort(classes_count)[::-1]
 
     return classes_count, classes, label_index, count_sort_best_index
+
+
+def sort_trim_arr(train_bop, sort_index, m, n):
+    train_bop_sort = np.zeros((n+1) * m)
+    idx = 0
+    for j in range(n):
+        k = sort_index[j]
+        for i in range(m):
+            train_bop_sort[idx] = train_bop[i + k * m]
+            idx  += 1
+    return train_bop_sort
