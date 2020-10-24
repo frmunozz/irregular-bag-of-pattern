@@ -1,6 +1,7 @@
 from collections import defaultdict
 import numpy as np
 import pandas as pd
+from scipy.stats import f_oneway
 
 
 def _load_file(filename, **kwargs):
@@ -71,6 +72,7 @@ class BagOfPatternFeature(object):
         self.cum2 = []
         self.bopsize = 0
         self.train_bop = None
+        self.train_bop_matrix = None
         self.train_label_index = None
         self.tlabel = None
         self.class_count = None
@@ -160,6 +162,7 @@ class BagOfPatternFeature(object):
     def bop_paper(self, wd, wl):
         self.bopsize = 1 << (2 * wd)
         self.train_bop = np.zeros((self.m * self.bopsize) + 1)
+        self.train_bop_matrix = np.zeros((self.m, self.bopsize))
         for i in range(self.m):
             pword = -1
             data = self.dataset[i]
@@ -191,10 +194,11 @@ class BagOfPatternFeature(object):
                             val = 2
                         else:
                             val = 3
-                    ws = (1 << (1 * k))*val
+                    ws = (1 << (2 * k))*val
                     wordp += ws
                 if pword != wordp:
                     self.train_bop[i + wordp * self.m] += 1
+                    self.train_bop_matrix[i][wordp] += 1
                     pword = wordp
 
     def bop(self, wd, wl, tol=1, verbose=True):
@@ -203,6 +207,7 @@ class BagOfPatternFeature(object):
         else:
             self.bopsize = 1 << (2 * wd)
         self.train_bop = np.zeros((self.m * self.bopsize) + 1)
+        self.train_bop_matrix = np.zeros((self.m, self.bopsize))
         count_empty_segments = 0
         for k in range(self.m):
             pword = -1
@@ -259,6 +264,7 @@ class BagOfPatternFeature(object):
                     wordp += ws
                 if pword != wordp:
                     self.train_bop[k + wordp*self.m] += 1
+                    self.train_bop_matrix[k][wordp] += 1
                     pword = wordp
         if verbose:
             print("TOTAL DE SEGMENTOS VACIOS: ", count_empty_segments)
@@ -274,6 +280,15 @@ class BagOfPatternFeature(object):
             self.train_label_index[i] = position
             self.class_positions[self.tlabel[position]].append(i)
             self.class_count[position] += 1
+
+    def anova_matrix(self, verbose=True):
+        self.bop_f_a = np.zeros(self.bopsize)
+        f_inputs = []
+        for i in range(self.c):
+            idxs = np.where(i == self.train_label_index)[0]
+            f_inputs.append(self.train_bop_matrix[idxs])
+        f, p = f_oneway(*f_inputs)
+        self.bop_f_a = np.round(np.nan_to_num(f), 5)
 
     def anova(self, verbose=True):
         self.bop_f_a = np.zeros(self.bopsize)
