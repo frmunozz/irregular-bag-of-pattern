@@ -332,7 +332,7 @@ class BagOfPatternFeature(object):
         self.sort_index = np.argsort(self.bop_f_a)[::-1]
 
         self.fea_num = 0
-        while self.bop_f_a[self.sort_index[self.fea_num]] > 0:
+        while self.fea_num < self.bopsize and self.bop_f_a[self.sort_index[self.fea_num]] > 0:
             self.fea_num += 1
 
     def sort_trim_arr(self, verbose=True):
