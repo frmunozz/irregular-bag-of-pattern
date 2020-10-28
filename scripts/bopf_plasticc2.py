@@ -20,8 +20,8 @@ def worker_main_test_plasticc_p1(n1, n2, c, wd_arr, wl_arr, out_q):
         wl_num = len(wl_arr)
 
         bopf = BagOfPatternFeature(special_character=True)
-        path = "D:/tesis/tesis/data/plasticc_subsets/scenario1_ratio_2-8/"
-        # path = "D:/tesis/tesis/data/plasticc_sub_dataset/"
+        path = os.path.join(main_path, "data", "plasticc_subsets", "scenario1_ratio_2-8/")
+        # path = os.path.join(main_path, "data", "plasticc_sub_dataset/")
         bopf.load_dataset(path, fmt="npy", set_type="train", n1=n1, c=c)
         bopf.cumsum()
 
@@ -94,8 +94,8 @@ def main_test_plasticc_p1_multiprocess(n1, n2, c, wd_arr, wl_arr, n_process):
         num_res -= 1
 
     bopf = BagOfPatternFeature(special_character=True)
-    path = "D:/tesis/tesis/data/plasticc_subsets/scenario1_ratio_2-8/"
-    # path = "D:/tesis/tesis/data/plasticc_sub_dataset/"
+    path = os.path.join(main_path, "data", "plasticc_subsets", "scenario1_ratio_2-8/")
+        # path = os.path.join(main_path, "data", "plasticc_sub_dataset/")
     bopf.load_dataset(path, fmt="npy", set_type="train", n1=n1, c=c)
     bopf.cumsum()
     bopf.bop(4, 0.9, verbose=False)
@@ -169,7 +169,14 @@ def main_test_plasticc_p2(bopf, bopf_t, output_dict, top_n):
           ", wl:", output_dict["bop_wl"][s_index2],
           "-> cv_acc:", round(output_dict["bop_cv_acc2"][s_index2], 3),
           ", acc:", round(rbest_tf_idf, 3))
-    return max(round(rbest_tf_idf, 3), round(rbest_centroid, 3))
+
+    rbest_centroid = round(rbest_centroid, 3)
+    rbest_tf_idf = round(rbest_tf_idf, 3)
+
+    if rbest_centroid > rbest_tf_idf:
+        return rbest_centroid, output_dict["bop_wd"][s_index1], output_dict["bop_wl"][s_index1]
+    else:
+        return rbest_tf_idf, output_dict["bop_wd"][s_index2], output_dict["bop_wl"][s_index2]
 
 
 if __name__ ==  '__main__':
@@ -179,8 +186,8 @@ if __name__ ==  '__main__':
     n_process = 6
     top_n = 50
 
-    n1_arr = [100]
-    n2_arr = [25]
+    n1_arr = [500, 1000, 2000, 4000]
+    n2_arr = [125, 250, 500, 1000]
     c = 6
     for n1, n2 in zip(n1_arr, n2_arr):
         f = open((main_path + "/data/bop_plasticc_log.txt").replace("\\", "/"), "a")
@@ -199,7 +206,7 @@ if __name__ ==  '__main__':
             ini = time.time()
             bopf3, bopf_t3, output_dict3 = main_test_plasticc_p1_multiprocess(n1, n2, c, wd_arr, wl_arr, n_process)
             end1 = time.time()
-            acc2 = main_test_plasticc_p2(bopf3, bopf_t3, output_dict3, top_n)
+            acc2, best_wd, best_wl = main_test_plasticc_p2(bopf3, bopf_t3, output_dict3, top_n)
             end2 = time.time()
             s = "best accuracy of tests: %f" % acc2
             print(s)
@@ -210,6 +217,13 @@ if __name__ ==  '__main__':
             s = "test classifier execution time: %f" % (end2 - end1)
             print(s)
             f.write(s + '\n')
+
+            f2 = open((main_path + "/data/bop_plasticc_results.csv").replace("\\", "/"), "a")
+            # s = "%d,%d,%d,%f,%d,%f,%f,%f" % (n1, n2, c, acc2, best_wd, best_wl, end1-ini, end2-end1)
+            s = "{},{},{},{},{},{},{},{}".format(n1, n2, c, acc2, best_wd, best_wl, end1-ini, end2-end1)
+            print(s)
+            f2.write(s + "\n")
+            f2.close()
             s = "================================="
             print(s)
             f.write(s + '\n')

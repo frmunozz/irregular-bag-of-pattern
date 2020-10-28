@@ -17,8 +17,8 @@ if __name__ == '__main__':
     parser.add_argument("-distType", dest="dist_type", help="distance funcion name to use", required=False, type=str)
 
     args = parser.parse_args()
-    in_folder = args.path + "plasticc_sub_dataset/"
-    out_folder = args.path + "bruteforce_dmatrix/"
+    in_folder = args.path + "plasticc_subsets/scenario1_ratio_2-8/"
+    out_folder = args.path + "bruteforce_dmatrix/scenario1_ratio_2-8/"
     n1 = args.n1
     n2 = args.n2
     c = args.c
