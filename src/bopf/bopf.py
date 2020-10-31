@@ -73,6 +73,7 @@ class BagOfPatternFeature(object):
         self.bopsize = 0
         self.train_bop = None
         self.train_bop_matrix = None
+        self.class_word_count = None
         self.train_label_index = None
         self.tlabel = None
         self.class_count = None
@@ -89,6 +90,10 @@ class BagOfPatternFeature(object):
         self.best2_score = -1
         self.class_positions = {}
         self.special_character = special_character
+        self.dists_centroids = None
+        self.dists_tf_idfs_p1 = None
+        self.dists_tf_idfs_p2 = None
+        self.dists_tf_idfs_p3 = None
 
     def load_dataset(self, dataset_path, fmt="pandas", **kwargs):
         if fmt == "pandas":
@@ -341,9 +346,68 @@ class BagOfPatternFeature(object):
             if j % 100 == 0 and verbose:
                 print("{}/{}".format(j, self.fea_num), end="\r")
             k = self.sort_index[j]
-            for i in range(self.m):
-                train_bop_sort.append(self.train_bop[i + k * self.m])
+            idxs = np.arange(self.m) + k * self.m
+            train_bop_sort.extend(self.train_bop[idxs])
+            # for i in range(self.m):
+            #     train_bop_sort.append(self.train_bop[i + k * self.m])
         self.train_bop_sort = np.array(train_bop_sort)
+
+    def count_words_by_class(self):
+        self.class_word_count = np.zeros((self.c, self.fea_num))
+        for k in range(self.c):
+            idxs = np.where(k == self.train_label_index)[0]
+            self.class_word_count[k] += np.sum(self.train_bop_sort[idxs], axis=0)
+
+    def get_cv_centroid(self, k, j):
+        self.class_word_count[k] -= self.train_bop_sort[j]
+        centroid = self.get_centroid()
+        self.class_word_count[k] += self.train_bop_sort[j]
+        return centroid
+
+    def get_centroid(self):
+        centroids = np.zeros((self.c, self.fea_num))
+
+        for k in range(self.c):
+            centroids[k] = np.divide(self.class_word_count[k], self.class_count[k])
+
+        return centroids
+
+    def centroid_eval(self, centroids, i, j):
+        rmin = np.inf
+        rmin_idx = -1
+        for k in range(self.c):
+            self.dists_centroids[k] += (self.train_bop_sort[j + i * self.m] - centroids[k][i]) ** 2
+            if rmin > self.dists_centroids[k]:
+                rmin = self.dists_centroids[k]
+                rmin_idx = k
+        return rmin, rmin_idx
+
+    def cross_VL(self):
+        # x = np.zeros((self.c, self.fea_num))
+        # y = np.zeros((self.m, self.c))
+        self.crossL = []
+        maxcount = -1
+        maxk = -1
+        self.dists_centroids = np.zeros(self.c)
+
+        for i in range(self.fea_num):
+            cv_centroid_matchs = 0
+            for j in range(self.m):
+                k = self.train_label_index[j]
+                centroids = self.get_cv_centroid(k, j)
+                # rmin_c, rmin_c_idx = self.centroid_eval(centroids, i, j)
+
+                # if rmin_c_idx == k:
+                #     cv_centroid_matchs += 1
+
+            # if cv_centroid_matchs > maxcount:
+            #     maxcount = cv_centroid_matchs
+            #     maxk = i
+
+        # self.best_idx = maxk + 1
+        # self.best_score = maxcount / self.m
+
+        # self.crossL = self.get_centroid()
 
     def crossVL(self, verbose=True):
         x = np.zeros((self.c, self.fea_num))
