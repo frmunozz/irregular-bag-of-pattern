@@ -2,6 +2,7 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 from scipy.stats import f_oneway
+from sklearn.metrics import balanced_accuracy_score
 
 
 def _load_file(filename, **kwargs):
@@ -415,6 +416,8 @@ class BagOfPatternFeature(object):
         self.crossL = []
         maxcount = -1
         maxk = -1
+        maxacc = -np.inf
+        maxk2 = -1
         for k in range(self.fea_num):
             if verbose:
                 print("{}/{}".format(k, self.fea_num), end="\r")
@@ -431,6 +434,8 @@ class BagOfPatternFeature(object):
                 x[i][k] = x[i][k] / self.class_count[i]
                 self.crossL.append(x[i][k])
 
+            real_labels = []
+            pred_labels = []
             for i in range(self.m):
                 rmin = np.inf
                 label = 0.0
@@ -447,15 +452,26 @@ class BagOfPatternFeature(object):
                     if r < rmin:
                         rmin = r
                         label = j
+                real_labels.append(self.train_label_index[i])
+                pred_labels.append(label)
                 if label == self.train_label_index[i]:
                     count += 1
             # print(k+1, count / self.m)
+            balanced_acc = balanced_accuracy_score(real_labels, pred_labels)
             if count >= maxcount:
                 maxcount = count
                 maxk = k
 
-        self.best_idx = maxk + 1
-        self.best_score = maxcount / self.m
+            if balanced_acc >= maxacc:
+                maxacc = balanced_acc
+                maxk2 = k
+
+        print("crossVL using imbalance acc: ", maxk + 1, ", crossVL using balanced acc:", maxk2+1)
+        # self.best_idx = maxk + 1
+        # self.best_score = maxcount / self.m
+
+        self.best_idx = maxk2 + 1
+        self.best_score = maxacc
 
     def crossVL2(self):
         x = np.zeros((self.c, self.fea_num))
@@ -465,7 +481,9 @@ class BagOfPatternFeature(object):
 
         self.crossL2 = []
         maxcount = -1
+        maxacc = -np.inf
         maxk = -1
+        maxk2 = -1
         for k in range(self.fea_num):
             count = 0
             for i in range(self.m):
@@ -481,6 +499,8 @@ class BagOfPatternFeature(object):
                     x[i][k] = (1 + np.log10(x[i][k]))*(np.log10(1 + self.c/countc))
                 self.crossL2.append(x[i][k])
 
+            real_labels = []
+            pred_labels = []
             for i in range(self.m):
                 rmax = -np.inf
                 label = 0.0
@@ -502,13 +522,26 @@ class BagOfPatternFeature(object):
                         if r > rmax:
                             rmax = r
                             label = j
+                real_labels.append(self.train_label_index[i])
+                pred_labels.append(label)
                 if label == self.train_label_index[i]:
                     count += 1
+            balanced_acc = balanced_accuracy_score(real_labels, pred_labels)
+
             if count >= maxcount:
                 maxcount = count
                 maxk = k
-        self.best2_idx = maxk+1
-        self.best2_score = maxcount / self.m
+
+            if balanced_acc >= maxacc:
+                maxacc = balanced_acc
+                maxk2 = k
+
+        print("crossVL2 using imbalance acc: ", maxk + 1, ", crossVL using balanced acc:", maxk2 + 1)
+        # self.best2_idx = maxk+1
+        # self.best2_score = maxcount / self.m
+
+        self.best_idx = maxk2 + 1
+        self.best_score = maxacc
 
         return self.crossL2
 
