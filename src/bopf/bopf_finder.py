@@ -4,6 +4,7 @@ from .classifier import classify, classify2
 from .bopf import BagOfPatternFeature
 import multiprocessing as mp
 import numpy as np
+from sklearn.metrics import balanced_accuracy_score
 
 
 def bopf_param_finder(bopf, bopf_t, wd_arr, wl_arr):
@@ -151,16 +152,19 @@ def bopf_best_classifier(bopf, bopf_t, output_dict, top_n):
         pred_centroid = bopf_classifier(bopf, bopf_t, output_dict, s_index1, classifier="centroid")
         pred_tf_idf = bopf_classifier(bopf, bopf_t, output_dict, s_index2, classifier="tf_idf")
 
-        count_centroid = 0
-        count_tf_idf = 0
-        for j in range(len(real_label)):
-            if pred_centroid[j] == real_label[j]:
-                count_centroid += 1
-            if pred_tf_idf[j] == real_label[j]:
-                count_tf_idf += 1
+        # count_centroid = 0
+        # count_tf_idf = 0
+        # for j in range(len(real_label)):
+        #     if pred_centroid[j] == real_label[j]:
+        #         count_centroid += 1
+        #     if pred_tf_idf[j] == real_label[j]:
+        #         count_tf_idf += 1
+        #
+        # acc_centroid = count_centroid / len(real_label)
+        # acc_tf_idf = count_tf_idf / len(real_label)
 
-        acc_centroid = count_centroid / len(real_label)
-        acc_tf_idf = count_tf_idf / len(real_label)
+        acc_centroid = balanced_accuracy_score(real_label, pred_centroid)
+        acc_tf_idf = balanced_accuracy_score(real_label, pred_tf_idf)
 
         if acc_centroid > rbest_centroid:
             rbest_centroid = acc_centroid
@@ -176,12 +180,12 @@ def bopf_best_classifier(bopf, bopf_t, output_dict, top_n):
     print("classify with best centroid and wd:", output_dict["bop_wd"][s_index1],
           ", wl:", output_dict["bop_wl"][s_index1],
           "-> cv_acc:", round(output_dict["bop_cv_acc"][s_index1], 3),
-          ", acc:", round(rbest_centroid, 3))
+          ", balanced acc:", round(rbest_centroid, 3))
     s_index2 = index2[best_tf_idf]
     print("classify with best tf-idf and wd:", output_dict["bop_wd"][s_index2],
           ", wl:", output_dict["bop_wl"][s_index2],
           "-> cv_acc:", round(output_dict["bop_cv_acc2"][s_index2], 3),
-          ", acc:", round(rbest_tf_idf, 3))
+          ", balanced acc:", round(rbest_tf_idf, 3))
 
     if rbest_centroid > rbest_tf_idf:
         pred_labels = bopf_classifier(bopf, bopf_t, output_dict, s_index1, classifier="centroid")
