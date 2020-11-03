@@ -45,9 +45,9 @@ def bopf_param_finder(bopf, bopf_t, wd_arr, wl_arr):
 def bopf_param_finder_worker(n1, n2, c, wd_arr, wl_arr, path, out_q):
     try:
         print("start worker")
-        bopf = BagOfPatternFeature(special_character=True)
+        bopf = BagOfPatternFeature(special_character=True, strategy="special2")
         bopf.load_dataset(path, fmt="npy", set_type="train", n1=n1, c=c)
-        bopf_t = BagOfPatternFeature(special_character=True)
+        bopf_t = BagOfPatternFeature(special_character=True, strategy="special2")
         bopf_t.load_dataset(path, fmt="npy", set_type="test", n1=n2, c=c)
 
         bopf.cumsum()
@@ -90,13 +90,13 @@ def bopf_param_finder_mp(path, n1, n2, c, wd_arr, wl_arr, n_process):
             output_dict[k].extend(v)
         num_res -= 1
 
-    bopf = BagOfPatternFeature(special_character=True)
+    bopf = BagOfPatternFeature(special_character=True, strategy="special2")
     bopf.load_dataset(path, fmt="npy", set_type="train", n1=n1, c=c)
     bopf.cumsum()
     bopf.bop(4, 0.9, verbose=False)
     bopf.adjust_label_set()
 
-    bopf_t = BagOfPatternFeature(special_character=True)
+    bopf_t = BagOfPatternFeature(special_character=True, strategy="special2")
     bopf_t.load_dataset(path, fmt="npy", set_type="test", n1=n2, c=c)
     bopf_t.cumsum()
 

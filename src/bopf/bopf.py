@@ -64,7 +64,7 @@ def _load_numpy(data_path, **kwargs):
 
 
 class BagOfPatternFeature(object):
-    def __init__(self, special_character=True):
+    def __init__(self, special_character=True, strategy="special2"):
         self.dataset = []
         self.times = []
         self.labels = []
@@ -95,6 +95,8 @@ class BagOfPatternFeature(object):
         self.dists_tf_idfs_p1 = None
         self.dists_tf_idfs_p2 = None
         self.dists_tf_idfs_p3 = None
+        self.strategy = strategy
+        self.alphabet_size = 4
 
     def load_dataset(self, dataset_path, fmt="pandas", **kwargs):
         if fmt == "pandas":
@@ -207,14 +209,68 @@ class BagOfPatternFeature(object):
                     self.train_bop_matrix[i][wordp] += 1
                     pword = wordp
 
-    def bop(self, wd, wl, tol=1, verbose=True):
+    def set_bopsize(self, wd):
         if self.special_character:
             self.bopsize = 1 << (2 * (wd + 1))
         else:
             self.bopsize = 1 << (2 * wd)
+
+    def set_word_feature(self, pword, wordp, k):
+        if pword != wordp:
+            self.train_bop[k + wordp * self.m] += 1
+            self.train_bop_matrix[k][wordp] += 1
+            pword = wordp
+        return pword
+
+    def word_feature_cases(self, pword, k, checker_empty, segment_characters):
+        s = np.sum(checker_empty)
+        if self.special_character:
+            if self.strategy == "special1":
+                # special1: allow a 'threshold' number of 'special character' on each word
+                threshold = len(checker_empty) // 2.3
+                # threshold is defined in way that: for wd = 3, 4, threshold = 1, for wd = 5, 6, threshold = 2, for wd=7, threshold = 3
+                wordp = int(np.sum(segment_characters))
+                if s > threshold:
+                    return pword
+                else:
+                    return self.set_word_feature(pword, wordp, k)
+            elif self.strategy == "special2":
+                # special2: allow at most 2 'special character' at beginning and/or end of the word
+                # on wd > 5 allows 2 'special characters', and on wd < 5, allows only 1
+                wordp = int(np.sum(segment_characters))
+                wd = len(checker_empty)
+                if s == 2 and wd > 5:
+                    if checker_empty[0] == 1 and checker_empty[-1] == 1:
+                        pword = self.set_word_feature(pword, wordp, k)
+                elif s == 1:
+                    if checker_empty[0] == 1 or checker_empty[-1] == 1:
+                        pword = self.set_word_feature(pword, wordp, k)
+                elif s == 0:
+                    pword = self.set_word_feature(pword, wordp, k)
+                return pword
+
+            elif self.strategy == "special3":
+                # on "special3" we will take "special character" as a joker and add them to different possibilities
+                raise NotImplementedError()
+            else:
+                raise ValueError("unknown strategy '%s'" % self.strategy)
+
+
+
+        else:
+            if s > 0:
+                return pword
+            else:
+                # we are on regular case
+                wordp = int(np.sum(segment_characters))
+                return self.set_word_feature(pword, wordp, k)
+
+    def bop(self, wd, wl, tol=1, verbose=True):
+        self.set_bopsize(wd)
         self.train_bop = np.zeros((self.m * self.bopsize) + 1)
         self.train_bop_matrix = np.zeros((self.m, self.bopsize))
         count_empty_segments = 0
+        count_small_ts = 0
         for k in range(self.m):
             pword = -1
             data = self.dataset[k]
@@ -224,7 +280,10 @@ class BagOfPatternFeature(object):
             j = 1
             cum1_data = self.cum1[k]
             cum2_data = self.cum2[k]
-            window = (1.0 * wl) * (time_stamps[n-1] - time_stamps[0])
+            ts_width = time_stamps[n-1] - time_stamps[0]
+            if n < 6:
+                count_small_ts += 1
+            window = (1.0 * wl) * ts_width
             while j < n:
                 seq_i, seq_j, i, j = self._bop_get_next_sequence(time_stamps, n, i, j, window, tol=tol)
                 if seq_i == seq_j and seq_i == -1:
@@ -235,17 +294,18 @@ class BagOfPatternFeature(object):
                 # if round(sumx2 / (seq_j-seq_i), 5) < round(meanx * meanx, 5):
                 #     print(k, i, j, seq_i, seq_j, meanx, meanx*meanx, sumx2, sumx2 / (seq_j - seq_i))
                 sigmax = np.sqrt(round(sumx2 / (seq_j-seq_i), 15) - round(meanx * meanx, 15))
-                wordp = 0
                 seg_j = seq_i
                 seg_window = window / wd
-                has_empty_segment = False
+                checker_empty = np.zeros(wd)
+                segment_characters = np.zeros(wd)
                 for w_i in range(wd):
                     seg_i = seg_j
                     seg_j = self._bop_get_next_segment(time_stamps, n, w_i, seq_i, seg_j, seg_window, k)
                     if seg_j - seg_i <= tol // wd:
-                        has_empty_segment = True
                         count_empty_segments += 1
+                        checker_empty[w_i] = 1
                         val = 4
+
                     else:
                         sumsub = cum1_data[seg_j] - cum1_data[seg_i]
                         avgsub = sumsub / (seg_j - seg_i)
@@ -267,13 +327,11 @@ class BagOfPatternFeature(object):
                             else:
                                 val = 3
                     ws = (1 << (2 * w_i))*val
-                    wordp += ws
-                if pword != wordp:
-                    self.train_bop[k + wordp*self.m] += 1
-                    self.train_bop_matrix[k][wordp] += 1
-                    pword = wordp
+                    segment_characters[w_i] = ws
+                pword = self.word_feature_cases(pword, k, checker_empty, segment_characters)
         if verbose:
             print("TOTAL DE SEGMENTOS VACIOS: ", count_empty_segments)
+            print("TOTAL DE ts < 6:" , count_small_ts)
 
     def adjust_label_set(self):
         self.train_label_index = np.zeros(self.m, dtype=int)

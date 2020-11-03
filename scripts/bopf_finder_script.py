@@ -55,9 +55,13 @@ def plot_confusion_matrix(cm, classes,
 
 if __name__ ==  '__main__':
     wd_arr = [3, 4, 5, 6, 7]
+    # step = 0.025
+    # wl_arr = np.round((np.arange(int(1 / step)) + 1) * step, 3)
+    # we discards windows smaller than 0.1
+    ini = 0.1
     step = 0.025
-    wl_arr = np.round((np.arange(int(1 / step)) + 1) * step, 3)
-    n_process = 8
+    wl_arr = ini + (np.arange(int((1 - ini) / step))) * step
+    n_process = 5
     top_n = 50
 
     data_path = os.path.join(main_path, "data", "plasticc_subsets", "scenario1_ratio_2-8/")
@@ -65,8 +69,8 @@ if __name__ ==  '__main__':
     output_file_log = os.path.join(output_report_path, "bopf_finder_plasticc_log.txt")
     output_file_results = os.path.join(output_report_path, "bopf_finder_plasticc_results.csv")
 
-    n1_arr = [100, 500, 1000, 2000]
-    n2_arr = [25, 125, 250, 500]
+    n1_arr = [100]
+    n2_arr = [25]
     c = 6
     for n1, n2 in zip(n1_arr, n2_arr):
         text1 = "========INITIALIZE==========\n"

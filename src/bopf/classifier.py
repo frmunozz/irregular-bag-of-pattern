@@ -39,9 +39,12 @@ def classify2(test_bop, tf_idfs, tlabel, mt, c, fea_num):
 
             if r2 != 0 and r3 != 0:
                 dist = r1*r1 / (r2*r3)
-                if dist > rmax:
-                    rmax = dist
-                    label = tlabel[j]
+            else:
+                dist = 0
+
+            if dist > rmax:
+                rmax = dist
+                label = tlabel[j]
         res[i] = label
     return res
 
