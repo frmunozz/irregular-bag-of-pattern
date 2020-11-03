@@ -191,5 +191,5 @@ def bopf_best_classifier(bopf, bopf_t, output_dict, top_n):
         pred_labels = bopf_classifier(bopf, bopf_t, output_dict, s_index1, classifier="centroid")
         return rbest_centroid, s_index1, pred_labels, real_label, output_dict, "centroid"
     else:
-        pred_labels = bopf_classifier(bopf, bopf_t, output_dict, s_index1, classifier="tf_idf")
+        pred_labels = bopf_classifier(bopf, bopf_t, output_dict, s_index2, classifier="tf_idf")
         return rbest_tf_idf, s_index2, pred_labels, real_label, output_dict, "tf_idf"
