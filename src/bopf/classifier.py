@@ -30,14 +30,18 @@ def classify2(test_bop, tf_idfs, tlabel, mt, c, fea_num):
             r3 = 0.0
             for k in range(fea_num):
                 q = test_bop[i + k * mt]
+                if q > 0:
+                    q = 1 + np.log10(q)
                 s = tf_idfs[j + k * c]
                 r1 += q*s
-                r2 += q
-                r3 += s
-            dist = (r1**2) / (r2 * r3)
-            if dist > rmax:
-                rmax = dist
-                label = tlabel[j]
+                r2 += q*q
+                r3 += s*s
+
+            if r2 != 0 and r3 != 0:
+                dist = r1*r1 / (r2*r3)
+                if dist > rmax:
+                    rmax = dist
+                    label = tlabel[j]
         res[i] = label
     return res
 

@@ -18,7 +18,6 @@ def bopf_param_finder(bopf, bopf_t, wd_arr, wl_arr):
         wd = wd_arr[i]
         for j in range(wl_num):
             wl = wl_arr[j]
-            print(wd, wl)
             bopf.bop(wd, wl, verbose=False)
             bopf.adjust_label_set()
             bopf.anova(verbose=False)
@@ -31,6 +30,7 @@ def bopf_param_finder(bopf, bopf_t, wd_arr, wl_arr):
             output_dict["bop_feature_index"].append(bopf.sort_index[:bopf.best_idx])
 
             bopf.crossVL2()
+            print(wd, wl, "crossVL acc:", bopf.best_score, "crossVL2 acc:", bopf.best2_score)
             output_dict["bop_features2"].append(bopf.crossL2[:bopf.c * bopf.best2_idx])
             output_dict["bop_fea_num2"].append(bopf.best2_idx)
             output_dict["bop_cv_acc2"].append(bopf.best2_score)
@@ -134,6 +134,7 @@ def bopf_classifier(bopf, bopf_t, output_dict, s_index, classifier="centroid"):
         feature_index = output_dict["bop_feature_index2"][s_index]
         fea_num = output_dict["bop_fea_num2"][s_index]
         features = output_dict["bop_features2"][s_index]
+        print(wd, wl, output_dict["bop_cv_acc2"][s_index])
         return bopf_classifier_tf_idf(bopf, bopf_t, wd, wl, feature_index, features, fea_num)
 
 
@@ -145,6 +146,7 @@ def bopf_best_classifier(bopf, bopf_t, output_dict, top_n):
     rbest_centroid = -np.inf
     rbest_tf_idf = -np.inf
     real_label = np.array(bopf_t.labels)
+    print("starting classification test")
 
     for i in range(top_n):
         s_index1 = index1[i]
@@ -165,6 +167,8 @@ def bopf_best_classifier(bopf, bopf_t, output_dict, top_n):
 
         acc_centroid = balanced_accuracy_score(real_label, pred_centroid)
         acc_tf_idf = balanced_accuracy_score(real_label, pred_tf_idf)
+
+        print("--> acc tf_idf: ", acc_tf_idf)
 
         if acc_centroid > rbest_centroid:
             rbest_centroid = acc_centroid

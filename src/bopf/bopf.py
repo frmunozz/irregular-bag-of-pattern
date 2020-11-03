@@ -466,7 +466,7 @@ class BagOfPatternFeature(object):
                 maxacc = balanced_acc
                 maxk2 = k
 
-        print("crossVL using imbalance acc: ", maxk + 1, ", crossVL using balanced acc:", maxk2+1)
+        # print("crossVL using imbalance acc: ", maxk + 1, ", crossVL using balanced acc:", maxk2+1)
         # self.best_idx = maxk + 1
         # self.best_score = maxcount / self.m
 
@@ -526,6 +526,7 @@ class BagOfPatternFeature(object):
                 pred_labels.append(label)
                 if label == self.train_label_index[i]:
                     count += 1
+                
             balanced_acc = balanced_accuracy_score(real_labels, pred_labels)
 
             if count >= maxcount:
@@ -536,12 +537,12 @@ class BagOfPatternFeature(object):
                 maxacc = balanced_acc
                 maxk2 = k
 
-        print("crossVL2 using imbalance acc: ", maxk + 1, ", crossVL using balanced acc:", maxk2 + 1)
+        # print("crossVL2 using imbalance acc: ", maxk + 1, ", crossVL using balanced acc:", maxk2 + 1)
         # self.best2_idx = maxk+1
         # self.best2_score = maxcount / self.m
 
-        self.best_idx = maxk2 + 1
-        self.best_score = maxacc
+        self.best2_idx = maxk2 + 1
+        self.best2_score = maxacc
 
         return self.crossL2
 
