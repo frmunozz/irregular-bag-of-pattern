@@ -53,3 +53,10 @@ def sort_trim_arr(train_bop, sort_index, m, n):
             train_bop_sort[idx] = train_bop[i + k * m]
             idx  += 1
     return train_bop_sort
+
+
+def load_numpy_dataset(data_path, file_base):
+    dataset = np.load(data_path + file_base % "d", allow_pickle=True)
+    times = np.load(data_path + file_base % "t", allow_pickle=True)
+    labels = np.load(data_path + file_base % "l", allow_pickle=True)
+    return dataset, times, labels, len(dataset)
