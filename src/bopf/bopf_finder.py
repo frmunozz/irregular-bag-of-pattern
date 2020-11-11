@@ -4,7 +4,40 @@ from .classifier import classify, classify2
 from .bopf import BagOfPatternFeature
 import multiprocessing as mp
 import numpy as np
-from sklearn.metrics import balanced_accuracy_score
+from sklearn.metrics import balanced_accuracy_score, accuracy_score
+import queue
+
+
+def bopf_pipeline(bopf, wd, wl, output_dict, window_type="fraction"):
+    bopf.bop(wd, wl, verbose=False, window_type=window_type)
+    if len(bopf.dropped_ts) <=  bopf.m // 10:
+
+        bopf.adjust_label_set()
+        bopf.anova(verbose=False)
+        bopf.anova_sort()
+        bopf.sort_trim_arr(verbose=False)
+        bopf.crossVL(verbose=False)
+        bopf.crossVL2()
+
+        output_dict["bop_features"].append(bopf.crossL[:bopf.c * bopf.best_idx])
+        output_dict["bop_fea_num"].append(bopf.best_idx)
+        output_dict["bop_cv_acc"].append(bopf.best_score)
+        output_dict["bop_feature_index"].append(bopf.sort_index[:bopf.best_idx])
+
+        output_dict["bop_features2"].append(bopf.crossL2[:bopf.c * bopf.best2_idx])
+        output_dict["bop_fea_num2"].append(bopf.best2_idx)
+        output_dict["bop_cv_acc2"].append(bopf.best2_score)
+        output_dict["bop_feature_index2"].append(bopf.sort_index[:bopf.best2_idx])
+
+        output_dict["bop_wd"].append(wd)
+        output_dict["bop_wl"].append(wl)
+        output_dict["bop_dropped_ts"].append(len(bopf.dropped_ts))
+        print(mp.current_process().name, wd, wl, "crossVL acc:", round(bopf.best_score, 3), "crossVL2 acc:", round(bopf.best2_score, 3), ", dropped TS: ", len(bopf.dropped_ts))
+    else:
+        print(mp.current_process().name, wd, wl, ", SEQUENCE DROPPED, len(dropped ts): ", len(bopf.dropped_ts))
+
+    return output_dict
+
 
 
 def bopf_param_finder(bopf, bopf_t, wd_arr, wl_arr, window_type="fraction"):
@@ -46,48 +79,66 @@ def bopf_param_finder(bopf, bopf_t, wd_arr, wl_arr, window_type="fraction"):
 
                 output_dict["bop_wd"].append(wd)
                 output_dict["bop_wl"].append(wl)
+                output_dict["bop_dropped_ts"].append(len(bopf.dropped_ts))
             else:
                 print(wd, wl, ", SEQUENCE DROPPED, len(dropped ts): ", len(bopf.dropped_ts))
 
     return output_dict
 
 
-def bopf_param_finder_worker(train_base, test_base, wd_arr, wl_arr, path, window_type, out_q):
-    try:
-        print("start worker for wl range:", wl_arr[0], wl_arr[-1])
-        bopf = BagOfPatternFeature(special_character=True, strategy="special2")
+def bopf_param_finder_worker(combinations_to_try, train_base, test_base, path, window_type, strategy, lock, out_q):
+
+    try: 
+        print("start worker '%s'" % mp.current_process().name)
+        bopf = BagOfPatternFeature(special_character=True, strategy=strategy)
         bopf.load_dataset(path, fmt="npy", base=train_base)
-        bopf_t = BagOfPatternFeature(special_character=True, strategy="special2")
-        bopf_t.load_dataset(path, fmt="npy", base=test_base)
 
         bopf.cumsum()
-        bopf_t.cumsum()
 
-        output_dict = bopf_param_finder(bopf, bopf_t, wd_arr, wl_arr, window_type=window_type)
-        out_q.put((wl_arr[0], wl_arr[-1], output_dict))
+        output_dict = defaultdict(list)
+
+        while True:
+            try:
+                # lock.acquire()
+                wd, wl = combinations_to_try.get_nowait()
+                # lock.release()
+            except queue.Empty:
+                # lock.release()
+                break
+            else:
+                output_dict = bopf_pipeline(bopf, wd, wl, output_dict, window_type=window_type)
+        out_q.put((bopf, output_dict))
     except Exception as e:
-        print("worker failed with error:", e)
+        print("Worker failed with error:", e)
     finally:
-        print("worker done")
+        print("worker '%s' DONE" % mp.current_process().name)
 
 
-def bopf_param_finder_mp(path, train_base, test_base, wd_arr, wl_arr, n_process, window_type="fraction"):
+def bopf_param_finder_mp(path, train_base, test_base, wd_arr, wl_arr, n_process, window_type="fraction", strategy="special2"):
+
+    if n_process == "default":
+        n_process = mp.cpu_count()
+
     m = mp.Manager()
     result_queue = m.Queue()
 
-    N = int(round((1 + len(wl_arr)) // n_process))
+    wd_num = len(wd_arr)
+    wl_num = len(wl_arr)
+
+    n_combinations = wd_num * wl_num
+    combinations_to_try = mp.Queue()
+
+    for i in range(wd_num):
+        for j in range(wl_num):
+            combinations_to_try.put((wd_arr[wd_num - (i + 1)], wl_arr[j]))
+
+    lock = mp.Lock()
+
     jobs = []
-    wl_sub_arr_tuples = []
-    for k in range(n_process):
-        i = k * N
-        j = (k + 1) * N
-        if j > len(wl_arr):
-            j = len(wl_arr)
-        wl_sub_arr = wl_arr[i:j]
-        wl_sub_arr_tuples.append((i, j))
-        jobs.append(mp.Process(target=bopf_param_finder_worker,
-                               args=(train_base, test_base, wd_arr, wl_sub_arr, path, window_type, result_queue)))
-        jobs[-1].start()
+    for w in range(n_process):
+        p = mp.Process(target=bopf_param_finder_worker, args=(combinations_to_try, train_base, test_base, path, window_type, strategy, lock, result_queue))
+        jobs.append(p)
+        p.start()
 
     for p in jobs:
         p.join()
@@ -95,18 +146,12 @@ def bopf_param_finder_mp(path, train_base, test_base, wd_arr, wl_arr, n_process,
     output_dict = defaultdict(list)
     num_res = result_queue.qsize()
     while num_res > 0:
-        wl_min, wl_max, out_dict_worker = result_queue.get()
+        bopf, out_dict_worker = result_queue.get()
         for k, v in out_dict_worker.items():
             output_dict[k].extend(v)
         num_res -= 1
 
-    bopf = BagOfPatternFeature(special_character=True, strategy="special2")
-    bopf.load_dataset(path, fmt="npy", base=train_base)
-    bopf.cumsum()
-    bopf.bop(4, 0.9, verbose=False, window_type=window_type)
-    bopf.adjust_label_set()
-
-    bopf_t = BagOfPatternFeature(special_character=True, strategy="special2")
+    bopf_t = BagOfPatternFeature(special_character=True, strategy=strategy, test=True)
     bopf_t.load_dataset(path, fmt="npy", base=test_base)
     bopf_t.cumsum()
 
@@ -115,26 +160,20 @@ def bopf_param_finder_mp(path, train_base, test_base, wd_arr, wl_arr, n_process,
 
 def bopf_classifier_centroid(bopf, bopf_t, wd, wl, bop_feature_index, bop_features, bop_fea_num, window_type="fraction"):
     bopf_t.bop(wd, wl, verbose=False, window_type=window_type)
-    print("===== Number of dropped TS: ", len(bopf_t.dropped_ts))
     test_bop_sort = sort_trim_arr(bopf_t.train_bop, bop_feature_index,
                                   bopf_t.m, bop_fea_num)
     predicted_label = classify(test_bop_sort, bop_features, bopf.tlabel,
                                bopf_t.m, bopf.c, bop_fea_num)
-    for i in bopf_t.dropped_ts:
-        predicted_label[i] = 111
-    return predicted_label
+    return predicted_label, bopf_t.valid_train_bop
 
 
 def bopf_classifier_tf_idf(bopf, bopf_t, wd, wl, bop_feature_index, bop_features, bop_fea_num, window_type="fraction"):
     bopf_t.bop(wd, wl, verbose=False, window_type=window_type)
-    print("===== Number of dropped TS: ", len(bopf_t.dropped_ts))
     test_bop_sort = sort_trim_arr(bopf_t.train_bop, bop_feature_index,
                                   bopf_t.m, bop_fea_num)
     predicted_label = classify2(test_bop_sort, bop_features, bopf.tlabel,
                                 bopf_t.m, bopf.c, bop_fea_num)
-    for i in bopf_t.dropped_ts:
-        predicted_label[i] = 111
-    return predicted_label
+    return predicted_label, bopf_t.valid_train_bop
 
 
 def bopf_classifier(bopf, bopf_t, output_dict, s_index, classifier="centroid", window_type="fraction"):
@@ -145,17 +184,38 @@ def bopf_classifier(bopf, bopf_t, output_dict, s_index, classifier="centroid", w
         feature_index = output_dict["bop_feature_index"][s_index]
         fea_num = output_dict["bop_fea_num"][s_index]
         features = output_dict["bop_features"][s_index]
-        print(wd, wl, "cv_acc centroid: ", output_dict["bop_cv_acc"][s_index])
-        return bopf_classifier_centroid(bopf, bopf_t, wd, wl, feature_index, features, fea_num, window_type=window_type)
+        cv_acc = output_dict["bop_cv_acc"][s_index]
+        pred_label, valid_train_bop = bopf_classifier_centroid(bopf, bopf_t, wd, wl, feature_index, features, fea_num, window_type=window_type)
     else:
         feature_index = output_dict["bop_feature_index2"][s_index]
         fea_num = output_dict["bop_fea_num2"][s_index]
         features = output_dict["bop_features2"][s_index]
-        print(wd, wl, "cv_acc tf_idf: ", output_dict["bop_cv_acc2"][s_index])
-        return bopf_classifier_tf_idf(bopf, bopf_t, wd, wl, feature_index, features, fea_num, window_type=window_type)
+        cv_acc = output_dict["bop_cv_acc2"][s_index]
+        pred_label, valid_train_bop =  bopf_classifier_tf_idf(bopf, bopf_t, wd, wl, feature_index, features, fea_num, window_type=window_type)
+
+    train_dropped_ts = output_dict["bop_dropped_ts"][s_index]
+
+    info_to_print = "wd: " + str(wd) + ", wl: " + str(wl) + ", method: " + classifier
+    info_to_print += ", train_dropped_ts: " + str(train_dropped_ts) + ", test_dropped_ts: " + str(len(valid_train_bop) - valid_train_bop.sum())
+    info_to_print += ", cv_acc: " + str(round(cv_acc, 3))
+    return pred_label, valid_train_bop, info_to_print
 
 
-def bopf_best_classifier(bopf, bopf_t, output_dict, top_n, window_type="fraction"):
+def check_real_pred(real_label, pred_label, valid_train_bop, drop=True):
+    if drop:
+        real = []
+        pred = []
+
+        for j in range(len(valid_train_bop)):
+            if valid_train_bop[j]:
+                real.append(real_label[j])
+                pred.append(pred_label[j])
+
+        return real, pred
+    else:
+        return real_label, pred_label
+
+def bopf_best_classifier(bopf, bopf_t, output_dict, top_n, window_type="fraction", drop=False):
     index1 = np.argsort(output_dict["bop_cv_acc"])[::-1]
     index2 = np.argsort(output_dict["bop_cv_acc2"])[::-1]
     best_centroid = -1
@@ -170,19 +230,34 @@ def bopf_best_classifier(bopf, bopf_t, output_dict, top_n, window_type="fraction
     for i in range(top_n):
         s_index1 = index1[i]
         s_index2 = index2[i]
-        pred_centroid = bopf_classifier(bopf, bopf_t, output_dict, s_index1, classifier="centroid", window_type=window_type)
-        pred_tf_idf = bopf_classifier(bopf, bopf_t, output_dict, s_index2, classifier="tf_idf", window_type=window_type)
+        pred_label, valid_train_bop, info_to_print = bopf_classifier(bopf, bopf_t, output_dict, s_index1, classifier="centroid", window_type=window_type)
+        
+        real_centroid, pred_centroid = check_real_pred(real_label, pred_label, valid_train_bop, drop=drop)
 
-        acc_centroid = balanced_accuracy_score(real_label, pred_centroid)
-        acc_tf_idf = balanced_accuracy_score(real_label, pred_tf_idf)
+        acc_balanced_centroid = balanced_accuracy_score(real_centroid, pred_centroid)
+        acc_centroid = accuracy_score(real_centroid, pred_centroid)
 
-        print("--> acc tf_idf: ", acc_tf_idf, ", acc centroid: ", acc_centroid)
 
-        if acc_centroid > rbest_centroid:
-            rbest_centroid = acc_centroid
+        info_to_print += ", acc: " + str(round(acc_centroid, 3)) + ", acc balanced: " + str(round(acc_balanced_centroid, 3))
+        print(info_to_print)
+
+        pred_label, valid_train_bop, info_to_print = bopf_classifier(bopf, bopf_t, output_dict, s_index2, classifier="tf_idf", window_type=window_type)
+
+
+        real_tf_idf, pred_tf_idf = check_real_pred(real_label, pred_label, valid_train_bop, drop=drop)
+
+
+        acc_balanced_tf_idf = balanced_accuracy_score(real_tf_idf, pred_tf_idf)
+        acc_tf_idf = accuracy_score(real_tf_idf, pred_tf_idf)
+
+        info_to_print += ", acc: " + str(round(acc_tf_idf, 3)) + ", acc balanced: " + str(round(acc_balanced_tf_idf, 3))
+        print(info_to_print)
+
+        if acc_balanced_centroid > rbest_centroid:
+            rbest_centroid = acc_balanced_centroid
             best_centroid = i
-        if acc_tf_idf > rbest_tf_idf:
-            rbest_tf_idf = acc_tf_idf
+        if acc_balanced_tf_idf > rbest_tf_idf:
+            rbest_tf_idf = acc_balanced_tf_idf
             best_tf_idf = i
 
     rbest_centroid = round(rbest_centroid, 3)
@@ -200,8 +275,15 @@ def bopf_best_classifier(bopf, bopf_t, output_dict, top_n, window_type="fraction
           ", balanced acc:", round(rbest_tf_idf, 3))
 
     if rbest_centroid > rbest_tf_idf:
-        pred_labels = bopf_classifier(bopf, bopf_t, output_dict, s_index1, classifier="centroid", window_type=window_type)
-        return rbest_centroid, s_index1, pred_labels, real_label, output_dict, "centroid"
+        pred_label, valid_train_bop, info = bopf_classifier(bopf, bopf_t, output_dict, s_index1, classifier="centroid", window_type=window_type)
+        real, pred = check_real_pred(real_label, pred_label, valid_train_bop, drop=drop)
+
+        info += ", acc balanced: " + str(rbest_centroid)
+        return rbest_centroid, s_index1, pred, real, output_dict, "centroid", info
     else:
-        pred_labels = bopf_classifier(bopf, bopf_t, output_dict, s_index2, classifier="tf_idf", window_type=window_type)
-        return rbest_tf_idf, s_index2, pred_labels, real_label, output_dict, "tf_idf"
+        pred_label, valid_train_bop, info = bopf_classifier(bopf, bopf_t, output_dict, s_index2, classifier="tf_idf", window_type=window_type)
+        real, pred = check_real_pred(real_label, pred_label, valid_train_bop, drop=drop)
+
+        info += ", acc balanced: " + str(rbest_tf_idf)
+
+        return rbest_tf_idf, s_index2, pred, real, output_dict, "tf_idf", info

@@ -54,7 +54,8 @@ def plot_confusion_matrix(cm, classes,
 
 
 if __name__ ==  '__main__':
-    wd_arr = [3, 4, 5, 6, 7]
+    # wd_arr = [3, 4, 5, 6, 7]
+    wd_arr = [2, 3, 4, 5, 6, 7]
     # step = 0.025
     # wl_arr = np.round((np.arange(int(1 / step)) + 1) * step, 3)
     # we discards windows smaller than 0.1
@@ -63,10 +64,15 @@ if __name__ ==  '__main__':
     # wl_arr = ini + (np.arange(int((1 - ini) / step))) * step
 
     # wl_arr = np.array([50, 100, 125, 150, 175, 200, 225, 250, 300, 350])
-    wl_arr = np.array([150, 175, 200])
+    ini = 20
+    end = 400
+    step = 10
+    wl_arr = ini + np.arange(int((end - ini)/step) + 1) * step
     window_type = "time"
-    n_process = 3
-    top_n = 20
+    strategy = "special1"
+    n_process = "default"
+    drop=False
+    top_n = 30
 
     # data_path = os.path.join(main_path, "data", "plasticc_subsets", "scenario1_ratio_2-8/")
     data_path = os.path.join(main_path, "data", "plasticc_subsets", "ddf_wdf_split_simplified", "60_40_split")
@@ -76,8 +82,9 @@ if __name__ ==  '__main__':
 
     ddf_size_arr = [558, 930, 1860]
     wdf_size_arr = [1321, 2202, 4405]
-    ddf_size_arr = ddf_size_arr[:1]
-    wdf_size_arr = wdf_size_arr[:1]
+    ddf_size_arr = ddf_size_arr[:]
+    wdf_size_arr = wdf_size_arr[1:]
+
     for size_arr, key in zip([wdf_size_arr], ["wdf"]):
         for size in size_arr:
             text1 = "========INITIALIZE==========\n"
@@ -90,18 +97,20 @@ if __name__ ==  '__main__':
             ini1 = time.time()
             bopf, bopf_t, output_dict = bopf_param_finder_mp(data_path, train_base,
                                                              test_base, wd_arr, wl_arr,
-                                                             n_process, window_type=window_type)
+                                                             n_process, window_type=window_type,
+                                                             strategy=strategy)
             end1 = time.time()
             ini2 = time.time()
-            acc, s_index, pred_labels, real_labels, output_dict, _type = bopf_best_classifier(bopf, bopf_t,
+            acc, s_index, pred_labels, real_labels, output_dict, _type, info = bopf_best_classifier(bopf, bopf_t,
                                                                                               output_dict, top_n,
-                                                                                              window_type=window_type)
+                                                                                              window_type=window_type, drop=drop)
             end2 = time.time()
             text5 = "best accuracy of tests: %f\n" % acc
             text6 = "parameter finder execution time: %f\n" % (end1 - ini1)
             text7 = "test classifier execution time: %f\n" % (end2 - ini2)
             text8 = "=================================\n"
             print(text5, text6, text7, text8)
+            print(info)
             cnf_matrix = confusion_matrix(real_labels, pred_labels)
             report = classification_report(real_labels, pred_labels, output_dict=True)
             df = pd.DataFrame(report)
@@ -124,4 +133,5 @@ if __name__ ==  '__main__':
 
             f2 = open(output_file_log, "a")
             f2.write(text1 + text2 + text3 + text4 + text5 + text6 + text7 + text8)
+            f2.write(info + '\n')
             f2.close()

@@ -68,11 +68,11 @@ def load_numpy_dataset(data_path, file_base):
     dataset = np.load(os.path.join(data_path, file_base % "d"), allow_pickle=True)
     times = np.load(os.path.join(data_path, file_base % "t"), allow_pickle=True)
     labels = np.load(os.path.join(data_path, file_base % "l"), allow_pickle=True)
-    return dataset, times, labels, len(dataset)
+    return dataset, times, labels.astype(int), len(dataset)
 
 
 class BagOfPatternFeature(object):
-    def __init__(self, special_character=True, strategy="special2"):
+    def __init__(self, special_character=True, strategy="special2", test=False):
         self.dataset = []
         self.times = []
         self.labels = []
@@ -106,8 +106,9 @@ class BagOfPatternFeature(object):
         self.strategy = strategy
         self.alphabet_size = 4
         self.dropped_ts = []
-        self.new_index = []
-        self.new_m = -1
+        self.valid_train_bop = None
+        self.test = test
+        self.x = None
 
     def load_dataset(self, dataset_path, fmt="pandas", **kwargs):
         if fmt == "pandas":
@@ -230,34 +231,30 @@ class BagOfPatternFeature(object):
     def set_word_feature(self, pword, wordp, k):
         if pword != wordp:
             self.train_bop[k + wordp * self.m] += 1
+
+            p = int(np.where(self.tlabel == self.labels[k])[0][0])
+            self.x[p][wordp] += 1
+
             self.train_bop_matrix[k][wordp] += 1
             pword = wordp
         return pword
 
-    def word_feature_cases(self, pword, k, checker_empty, segment_characters):
+    def word_feature_cases(self, pword, k, checker_empty, segment_characters, threshold = 2):
         s = np.sum(checker_empty)
         if self.special_character:
+
             if self.strategy == "special1":
-                # special1: allow a 'threshold' number of 'special character' on each word
-                threshold = len(checker_empty) // 2.3
-                # threshold is defined in way that: for wd = 3, 4, threshold = 1, for wd = 5, 6, threshold = 2, for wd=7, threshold = 3
+                # special1: allow a 'threshold' number of 'special character' on each word in random position
                 wordp = int(np.sum(segment_characters))
                 if s > threshold:
                     return pword
                 else:
                     return self.set_word_feature(pword, wordp, k)
             elif self.strategy == "special2":
-                # special2: allow at most 2 'special character' at beginning and/or end of the word
-                # on wd > 5 allows 2 'special characters', and on wd < 5, allows only 1
+                # special2: allow a "threshold" number of 'special character' on each word at the end of the word
                 wordp = int(np.sum(segment_characters))
-                wd = len(checker_empty)
-                if s == 2 and wd > 5:
-                    if checker_empty[0] == 1 and checker_empty[-1] == 1:
-                        pword = self.set_word_feature(pword, wordp, k)
-                elif s == 1:
-                    if checker_empty[0] == 1 or checker_empty[-1] == 1:
-                        pword = self.set_word_feature(pword, wordp, k)
-                elif s == 0:
+                lim = len(checker_empty) - threshold
+                if np.sum(checker_empty[:lim]) == 0 and s <= threshold:
                     pword = self.set_word_feature(pword, wordp, k)
                 return pword
 
@@ -266,9 +263,6 @@ class BagOfPatternFeature(object):
                 raise NotImplementedError()
             else:
                 raise ValueError("unknown strategy '%s'" % self.strategy)
-
-
-
         else:
             if s > 0:
                 return pword
@@ -277,14 +271,27 @@ class BagOfPatternFeature(object):
                 wordp = int(np.sum(segment_characters))
                 return self.set_word_feature(pword, wordp, k)
 
-    def bop(self, wd, wl, tol=1, verbose=True, window_type="fraction"):
+    def bop(self, wd, wl, tol="default", verbose=True, window_type="fraction"):
         self.set_bopsize(wd)
         self.train_bop = np.zeros((self.m * self.bopsize) + 1)
         self.dropped_ts = []
         self.new_index = []
+        self.valid_train_bop = np.full(self.m, True)
+
         self.train_bop_matrix = np.zeros((self.m, self.bopsize))
         count_empty_segments = 0
         count_small_ts = 0
+
+        self.tlabel = np.sort(np.unique(self.labels))
+        self.c = self.tlabel.shape[0]
+
+        self.x = np.zeros((self.c, self.bopsize))
+
+        if tol == "default":
+            tol = wd + 1
+
+        threshold = wd // 2 if wd > 2 else 0
+
         for k in range(self.m):
             pword = -1
             data = self.dataset[k]
@@ -309,8 +316,6 @@ class BagOfPatternFeature(object):
                 sumx = cum1_data[seq_j] - cum1_data[seq_i]
                 sumx2 = cum2_data[seq_j] - cum2_data[seq_i]
                 meanx = sumx / (seq_j - seq_i)
-                # if round(sumx2 / (seq_j-seq_i), 5) < round(meanx * meanx, 5):
-                #     print(k, i, j, seq_i, seq_j, meanx, meanx*meanx, sumx2, sumx2 / (seq_j - seq_i))
                 sigmax = np.sqrt(round(sumx2 / (seq_j-seq_i), 15) - round(meanx * meanx, 15))
                 seg_j = seq_i
                 seg_window = window / wd
@@ -346,15 +351,11 @@ class BagOfPatternFeature(object):
                                 val = 3
                     ws = (1 << (2 * w_i))*val
                     segment_characters[w_i] = ws
-                pword = self.word_feature_cases(pword, k, checker_empty, segment_characters)
-                if pword != -1:
-                    accepted = True
-            if not accepted:
+                pword = self.word_feature_cases(pword, k, checker_empty, segment_characters, threshold=threshold)
+            if pword == -1:
                 self.dropped_ts.append(k)
-                self.labels[k] = 111
-            else:
-                self.new_index.append(k)
-        self.new_m = len(self.new_index)
+                self.valid_train_bop[k] = False
+
         if verbose:
             print("TOTAL DE SEGMENTOS VACIOS: ", count_empty_segments)
             print("TOTAL DE TIMESERIES DESCARTADAS: ", len(self.dropped_ts))
@@ -362,43 +363,41 @@ class BagOfPatternFeature(object):
 
     def adjust_label_set(self):
         self.train_label_index = np.zeros(self.m, dtype=int)
-        self.tlabel = np.sort(np.unique(self.labels))[:-1]
-        self.c = self.tlabel.shape[0]
         self.class_count = np.zeros(self.c)
         self.class_positions = defaultdict(list)
         for i in range(self.m):
-            l = self.labels[i]
-            if l != 111:
-                position = int(np.where(self.tlabel == l)[0][0])
+            if self.valid_train_bop[i]:
+                position = int(np.where(self.tlabel == self.labels[i])[0][0])
                 self.train_label_index[i] = position
                 self.class_positions[self.tlabel[position]].append(i)
                 self.class_count[position] += 1
 
-    def anova_matrix(self, verbose=True):
-        self.bop_f_a = np.zeros(self.bopsize)
-        f_inputs = []
-        for i in range(self.c):
-            idxs = np.where(i == self.train_label_index)[0]
-            f_inputs.append(self.train_bop_matrix[idxs])
-        f, p = f_oneway(*f_inputs)
-        self.bop_f_a = np.round(np.nan_to_num(f), 5)
+    # def anova_matrix(self, verbose=True):
+    #     self.bop_f_a = np.zeros(self.bopsize)
+    #     f_inputs = []
+    #     for i in range(self.c):
+    #         idxs = np.where(i == self.train_label_index)[0]
+    #         f_inputs.append(self.train_bop_matrix[idxs])
+    #     f, p = f_oneway(*f_inputs)
+    #     self.bop_f_a = np.round(np.nan_to_num(f), 5)
 
     def anova(self, verbose=True):
         self.bop_f_a = np.zeros(self.bopsize)
         bop_f_a_i = 0
+        m = self.valid_train_bop.sum()
         for j in range(self.bopsize):
             if j % 100 == 0 and verbose:
                 print("{}/{}".format(j, self.bopsize), end="\r")
             sumall = 0.0
             sumc = np.zeros(self.c)
             for i1 in range(self.m):
-            # for i1 in self.new_index:
-                k = int(self.train_label_index[i1])
-                sumall += self.train_bop[i1 + j * self.m]
-                sumc[k] += self.train_bop[i1 + j * self.m]
+                if self.valid_train_bop[i1]:
+                    k = int(self.train_label_index[i1])
+                    sumall += self.train_bop[i1 + j * self.m]
+                    sumc[k] += self.train_bop[i1 + j * self.m]
 
-            avgall = sumall / self.m
-            # avgall = sumall / self.new_m
+            # avgall = sumall / self.m
+            avgall = sumall / m
             ssa = 0.0
             avgc = np.zeros(self.c)
             for k in range(self.c):
@@ -407,13 +406,13 @@ class BagOfPatternFeature(object):
 
             ssw = 0.0
             for i2 in range(self.m):
-            # for i2 in self.new_index:
-                k = int(self.train_label_index[i2])
-                ssw += (self.train_bop[i2 + j * self.m] - avgc[k]) * (self.train_bop[i2 + j * self.m] - avgc[k])
+                if self.valid_train_bop[i2]:
+                    k = int(self.train_label_index[i2])
+                    ssw += (self.train_bop[i2 + j * self.m] - avgc[k]) * (self.train_bop[i2 + j * self.m] - avgc[k])
 
             msa = 1.0 * ssa / (self.c - 1)
-            msw = 1.0 * ssw / (self.m - self.c)
-            # msw = 1.0 * ssw / (self.new_m - self.c)
+            # msw = 1.0 * ssw / (self.m - self.c)
+            msw = 1.0 * ssw / (m - self.c)
             if msa == 0 and msw == 0:
                 self.bop_f_a[bop_f_a_i] = 0
             elif msw == 0 and msa != 0:
@@ -444,49 +443,49 @@ class BagOfPatternFeature(object):
             #     train_bop_sort.append(self.train_bop[i + k * self.m])
         self.train_bop_sort = np.array(train_bop_sort)
 
-    def count_words_by_class(self):
-        self.class_word_count = np.zeros((self.c, self.fea_num))
-        for k in range(self.c):
-            idxs = np.where(k == self.train_label_index)[0]
-            self.class_word_count[k] += np.sum(self.train_bop_sort[idxs], axis=0)
+    # def count_words_by_class(self):
+    #     self.class_word_count = np.zeros((self.c, self.fea_num))
+    #     for k in range(self.c):
+    #         idxs = np.where(k == self.train_label_index)[0]
+    #         self.class_word_count[k] += np.sum(self.train_bop_sort[idxs], axis=0)
 
-    def get_cv_centroid(self, k, j):
-        self.class_word_count[k] -= self.train_bop_sort[j]
-        centroid = self.get_centroid()
-        self.class_word_count[k] += self.train_bop_sort[j]
-        return centroid
+    # def get_cv_centroid(self, k, j):
+    #     self.class_word_count[k] -= self.train_bop_sort[j]
+    #     centroid = self.get_centroid()
+    #     self.class_word_count[k] += self.train_bop_sort[j]
+    #     return centroid
 
-    def get_centroid(self):
-        centroids = np.zeros((self.c, self.fea_num))
+    # def get_centroid(self):
+    #     centroids = np.zeros((self.c, self.fea_num))
 
-        for k in range(self.c):
-            centroids[k] = np.divide(self.class_word_count[k], self.class_count[k])
+    #     for k in range(self.c):
+    #         centroids[k] = np.divide(self.class_word_count[k], self.class_count[k])
 
-        return centroids
+    #     return centroids
 
-    def centroid_eval(self, centroids, i, j):
-        rmin = np.inf
-        rmin_idx = -1
-        for k in range(self.c):
-            self.dists_centroids[k] += (self.train_bop_sort[j + i * self.m] - centroids[k][i]) ** 2
-            if rmin > self.dists_centroids[k]:
-                rmin = self.dists_centroids[k]
-                rmin_idx = k
-        return rmin, rmin_idx
+    # def centroid_eval(self, centroids, i, j):
+    #     rmin = np.inf
+    #     rmin_idx = -1
+    #     for k in range(self.c):
+    #         self.dists_centroids[k] += (self.train_bop_sort[j + i * self.m] - centroids[k][i]) ** 2
+    #         if rmin > self.dists_centroids[k]:
+    #             rmin = self.dists_centroids[k]
+    #             rmin_idx = k
+    #     return rmin, rmin_idx
 
-    def cross_VL(self):
+    # def cross_VL(self):
         # x = np.zeros((self.c, self.fea_num))
         # y = np.zeros((self.m, self.c))
-        self.crossL = []
-        maxcount = -1
-        maxk = -1
-        self.dists_centroids = np.zeros(self.c)
+        # self.crossL = []
+        # maxcount = -1
+        # maxk = -1
+        # self.dists_centroids = np.zeros(self.c)
 
-        for i in range(self.fea_num):
-            cv_centroid_matchs = 0
-            for j in range(self.m):
-                k = self.train_label_index[j]
-                centroids = self.get_cv_centroid(k, j)
+        # for i in range(self.fea_num):
+        #     cv_centroid_matchs = 0
+        #     for j in range(self.m):
+        #         k = self.train_label_index[j]
+        #         centroids = self.get_cv_centroid(k, j)
                 # rmin_c, rmin_c_idx = self.centroid_eval(centroids, i, j)
 
                 # if rmin_c_idx == k:
@@ -500,6 +499,20 @@ class BagOfPatternFeature(object):
         # self.best_score = maxcount / self.m
 
         # self.crossL = self.get_centroid()
+
+    def simple_centroid(self):
+        x = np.zeros((self.c, self.bopsize))
+        self.crossL = []
+        for k in range(self.bopsize):
+            for i in range(self.m):
+                if self.valid_train_bop[i]:
+                    p = self.train_label_index[i]
+                    x[p][k] += self.train_bop[i + k * self.m]
+            for i in range(self.c):
+                x[i][k] = x[i][k] / self.class_count[i]
+                self.crossL.append(x[i][k])
+        self.best_idx = self.bopsize
+
 
     def crossVL(self, verbose=True):
         x = np.zeros((self.c, self.fea_num))
@@ -515,10 +528,11 @@ class BagOfPatternFeature(object):
             count = 0
             for i in range(self.m):
             # for i in self.new_index:
-                p = self.train_label_index[i]
+                if self.valid_train_bop[i]:
+                    p = self.train_label_index[i]
                 # if k == 0:
                     # print("train_bop_sort k={}, i={} :".format(k, i), self.train_bop_sort[i + k*self.m])
-                x[p][k] += self.train_bop_sort[i + k * self.m]
+                    x[p][k] += self.train_bop_sort[i + k * self.m]
 
             # print("x for k =", k, " :", x[:, k])
 
@@ -530,25 +544,26 @@ class BagOfPatternFeature(object):
             pred_labels = []
             for i in range(self.m):
             # for i in self.new_index:
-                rmin = np.inf
-                label = 0.0
-                p = self.train_label_index[i]
-                countc = self.class_count[p]
-                for j in range(self.c):
-                    r = y[i][j]
-                    pm = self.train_bop_sort[i + k * self.m]
-                    d = pm - x[j][k]
-                    if j == p:
-                        d += pm / countc
-                    r += d * d
-                    y[i][j] = r
-                    if r < rmin:
-                        rmin = r
-                        label = j
-                real_labels.append(self.train_label_index[i])
-                pred_labels.append(label)
-                if label == self.train_label_index[i]:
-                    count += 1
+                if self.valid_train_bop[i]:
+                    rmin = np.inf
+                    label = 0.0
+                    p = self.train_label_index[i]
+                    countc = self.class_count[p]
+                    for j in range(self.c):
+                        r = y[i][j]
+                        pm = self.train_bop_sort[i + k * self.m]
+                        d = pm - x[j][k]
+                        if j == p:
+                            d += pm / countc
+                        r += d * d
+                        y[i][j] = r
+                        if r < rmin:
+                            rmin = r
+                            label = j
+                    real_labels.append(p)
+                    pred_labels.append(label)
+                    if label == p:
+                        count += 1
             # print(k+1, count / self.m)
             balanced_acc = balanced_accuracy_score(real_labels, pred_labels)
             if count >= maxcount:
@@ -566,6 +581,32 @@ class BagOfPatternFeature(object):
         self.best_idx = maxk2 + 1
         self.best_score = maxacc
 
+    def simple_vectors(self):
+        # x = np.zeros((self.c, self.bopsize))
+        self.crossL = []
+        self.crossL2 = []
+        for k in range(self.bopsize):
+            # for i in range(self.m):
+            #     if self.valid_train_bop[i]:
+            #         p = self.train_label_index[i]
+            #         x[p][k] += self.train_bop[i + k*self.m]
+            countc = 0
+            for i in range(self.c):
+                if self.x[i][k] > 0:
+                    countc += 1
+
+            for i in range(self.c):
+                tf_idf = self.x[i][k]
+                if tf_idf > 0:
+                    tf_idf = (1 + np.log10(tf_idf))*(np.log10(1 + self.c/countc))
+                centroid = self.x[i][k] / self.class_count[i]
+                self.crossL.append(centroid)
+                self.crossL2.append(tf_idf)
+        self.best_idx = self.bopsize
+        self.best2_idx = self.bopsize
+
+
+
     def crossVL2(self):
         x = np.zeros((self.c, self.fea_num))
         y1 = np.zeros((self.m, self.c))
@@ -581,8 +622,9 @@ class BagOfPatternFeature(object):
             count = 0
             for i in range(self.m):
             # for i in self.new_index:
-                p = self.train_label_index[i]
-                x[p][k] += self.train_bop_sort[i + k*self.m]
+                if self.valid_train_bop[i]:
+                    p = self.train_label_index[i]
+                    x[p][k] += self.train_bop_sort[i + k*self.m]
             countc = 0.0
             for i in range(self.c):
                 if x[i][k] > 0:
@@ -597,30 +639,32 @@ class BagOfPatternFeature(object):
             pred_labels = []
             for i in range(self.m):
             # for i in self.new_index:
-                rmax = -np.inf
-                label = 0.0
-                for j in range(self.c):
-                    r1 = y1[i][j]
-                    r2 = y2[i][j]
-                    r3 = y3[i][j]
-                    d = self.train_bop_sort[i + k*self.m]
-                    if d > 0:
-                        d = 1 + np.log10(d)
-                    r1 += d * x[j][k]
-                    r2 += d*d
-                    r3 += x[j][k] * x[j][k]
-                    y1[i][j] = r1
-                    y2[i][j] = r2
-                    y3[i][j] = r3
-                    if r2 != 0 and r3 != 0:
-                        r = r1*r1 / (r2*r3)
-                        if r > rmax:
-                            rmax = r
-                            label = j
-                real_labels.append(self.train_label_index[i])
-                pred_labels.append(label)
-                if label == self.train_label_index[i]:
-                    count += 1
+                if self.valid_train_bop[i]:
+                    rmax = -np.inf
+                    label = 0.0
+                    p = self.train_label_index[i]
+                    for j in range(self.c):
+                        r1 = y1[i][j]
+                        r2 = y2[i][j]
+                        r3 = y3[i][j]
+                        d = self.train_bop_sort[i + k*self.m]
+                        if d > 0:
+                            d = 1 + np.log10(d)
+                        r1 += d * x[j][k]
+                        r2 += d*d
+                        r3 += x[j][k] * x[j][k]
+                        y1[i][j] = r1
+                        y2[i][j] = r2
+                        y3[i][j] = r3
+                        if r2 != 0 and r3 != 0:
+                            r = r1*r1 / (r2*r3)
+                            if r > rmax:
+                                rmax = r
+                                label = j
+                    real_labels.append(p)
+                    pred_labels.append(label)
+                    if label == p:
+                        count += 1
                 
             balanced_acc = balanced_accuracy_score(real_labels, pred_labels)
 
@@ -641,24 +685,24 @@ class BagOfPatternFeature(object):
 
         return self.crossL2
 
-    def classify(self, test_bop, mt):
-        train_bop_centroids = self.crossL
-        res = np.zeros(mt, dtype=int)
-        for i in range(mt):
-            rmin = np.inf
-            label = -1
-            for j in range(self.c):
-                r = 0.0
-                pm = test_bop[i]
-                pv = train_bop_centroids[j]
-                for k in range(self.best_idx):
-                    d = pm - pv
-                    pm = test_bop[i + (k+1)*mt]
-                    pv = train_bop_centroids[i + (k+1)*self.c]
-                    r += d*d
-                if r < rmin:
-                    rmin = r
-                    label = self.tlabel[j]
-            res[i] = label
+    # def classify(self, test_bop, mt):
+    #     train_bop_centroids = self.crossL
+    #     res = np.zeros(mt, dtype=int)
+    #     for i in range(mt):
+    #         rmin = np.inf
+    #         label = -1
+    #         for j in range(self.c):
+    #             r = 0.0
+    #             pm = test_bop[i]
+    #             pv = train_bop_centroids[j]
+    #             for k in range(self.best_idx):
+    #                 d = pm - pv
+    #                 pm = test_bop[i + (k+1)*mt]
+    #                 pv = train_bop_centroids[i + (k+1)*self.c]
+    #                 r += d*d
+    #             if r < rmin:
+    #                 rmin = r
+    #                 label = self.tlabel[j]
+    #         res[i] = label
 
-        return res
+    #     return res
