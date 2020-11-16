@@ -215,6 +215,7 @@ def check_real_pred(real_label, pred_label, valid_train_bop, drop=True):
     else:
         return real_label, pred_label
 
+
 def bopf_best_classifier(bopf, bopf_t, output_dict, top_n, window_type="fraction", drop=False):
     index1 = np.argsort(output_dict["bop_cv_acc"])[::-1]
     index2 = np.argsort(output_dict["bop_cv_acc2"])[::-1]
@@ -223,6 +224,9 @@ def bopf_best_classifier(bopf, bopf_t, output_dict, top_n, window_type="fraction
     rbest_centroid = -np.inf
     rbest_tf_idf = -np.inf
     real_label = np.array(bopf_t.labels)
+
+    if "bop_dropped_ts" not in output_dict:
+        output_dict["bop_dropped_ts"] = np.zeros(len(output_dict["bop_wd"]))
 
     top_n = min(top_n, len(index1))
     print("starting classification test")
