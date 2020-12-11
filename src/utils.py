@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import os
 
 
 def load_pandas(path,  **kwargs):
@@ -56,7 +57,7 @@ def sort_trim_arr(train_bop, sort_index, m, n):
 
 
 def load_numpy_dataset(data_path, file_base):
-    dataset = np.load(data_path + file_base % "d", allow_pickle=True)
-    times = np.load(data_path + file_base % "t", allow_pickle=True)
-    labels = np.load(data_path + file_base % "l", allow_pickle=True)
+    dataset = np.load(os.path.join(data_path,file_base % "d"), allow_pickle=True)
+    times = np.load(os.path.join(data_path,file_base % "t"), allow_pickle=True)
+    labels = np.load(os.path.join(data_path,file_base % "l"), allow_pickle=True)
     return dataset, times, labels, len(dataset)

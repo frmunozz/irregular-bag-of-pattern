@@ -6,6 +6,7 @@ import multiprocessing as mp
 import numpy as np
 from sklearn.metrics import balanced_accuracy_score, accuracy_score
 import queue
+import pandas as pd
 
 
 def bopf_pipeline(bopf, wd, wl, output_dict, window_type="fraction"):
@@ -99,13 +100,13 @@ def bopf_param_finder_worker(combinations_to_try, train_base, test_base, path, w
 
         while True:
             try:
-                # lock.acquire()
+                lock.acquire()
                 wd, wl = combinations_to_try.get_nowait()
-                # lock.release()
             except queue.Empty:
-                # lock.release()
+                lock.release()
                 break
             else:
+                lock.release()
                 output_dict = bopf_pipeline(bopf, wd, wl, output_dict, window_type=window_type)
         out_q.put((bopf, output_dict))
     except Exception as e:
@@ -114,7 +115,7 @@ def bopf_param_finder_worker(combinations_to_try, train_base, test_base, path, w
         print("worker '%s' DONE" % mp.current_process().name)
 
 
-def bopf_param_finder_mp(path, train_base, test_base, wd_arr, wl_arr, n_process, window_type="fraction", strategy="special2"):
+def bopf_param_finder_mp(path, train_base, test_base, wd_arr, wl_arr, n_process, out_path, window_type="fraction", strategy="special2"):
 
     if n_process == "default":
         n_process = mp.cpu_count()
@@ -150,6 +151,8 @@ def bopf_param_finder_mp(path, train_base, test_base, wd_arr, wl_arr, n_process,
         for k, v in out_dict_worker.items():
             output_dict[k].extend(v)
         num_res -= 1
+
+    pd.DataFrame(output_dict).to_csv(out_path, index=False)
 
     bopf_t = BagOfPatternFeature(special_character=True, strategy=strategy, test=True)
     bopf_t.load_dataset(path, fmt="npy", base=test_base)
@@ -216,7 +219,7 @@ def check_real_pred(real_label, pred_label, valid_train_bop, drop=True):
         return real_label, pred_label
 
 
-def bopf_best_classifier(bopf, bopf_t, output_dict, top_n, window_type="fraction", drop=False):
+def bopf_best_classifier(bopf, bopf_t, output_dict, top_n, out_centroid_dict_csv, out_tf_idf_dict_csv, window_type="fraction", drop=False):
     index1 = np.argsort(output_dict["bop_cv_acc"])[::-1]
     index2 = np.argsort(output_dict["bop_cv_acc2"])[::-1]
     best_centroid = -1
@@ -231,15 +234,29 @@ def bopf_best_classifier(bopf, bopf_t, output_dict, top_n, window_type="fraction
     top_n = min(top_n, len(index1))
     print("starting classification test")
 
+    out_centroid_dict = defaultdict(list)
+    out_tf_idf_dict = defaultdict(list)
+
     for i in range(top_n):
         s_index1 = index1[i]
         s_index2 = index2[i]
+
+        out_centroid_dict["bop_wd"].append(output_dict["bop_wd"][s_index1])
+        out_centroid_dict["bop_wl"].append(output_dict["bop_wl"][s_index1])
+        out_centroid_dict["cv_acc"].append(output_dict["bop_cv_acc"][s_index1])
+
+        out_tf_idf_dict["bop_wd"].append(output_dict["bop_wd"][s_index2])
+        out_tf_idf_dict["bop_wl"].append(output_dict["bop_wl"][s_index2])
+        out_tf_idf_dict["cv_acc"].append(output_dict["bop_cv_acc2"][s_index2])
+
         pred_label, valid_train_bop, info_to_print = bopf_classifier(bopf, bopf_t, output_dict, s_index1, classifier="centroid", window_type=window_type)
         
         real_centroid, pred_centroid = check_real_pred(real_label, pred_label, valid_train_bop, drop=drop)
 
         acc_balanced_centroid = balanced_accuracy_score(real_centroid, pred_centroid)
         acc_centroid = accuracy_score(real_centroid, pred_centroid)
+        out_centroid_dict["acc"].append(acc_centroid)
+        out_centroid_dict["balanced_acc"].append(acc_balanced_centroid)
 
 
         info_to_print += ", acc: " + str(round(acc_centroid, 3)) + ", acc balanced: " + str(round(acc_balanced_centroid, 3))
@@ -253,6 +270,8 @@ def bopf_best_classifier(bopf, bopf_t, output_dict, top_n, window_type="fraction
 
         acc_balanced_tf_idf = balanced_accuracy_score(real_tf_idf, pred_tf_idf)
         acc_tf_idf = accuracy_score(real_tf_idf, pred_tf_idf)
+        out_tf_idf_dict["acc"].append(acc_tf_idf)
+        out_tf_idf_dict["balanced_acc"].append(acc_balanced_tf_idf)
 
         info_to_print += ", acc: " + str(round(acc_tf_idf, 3)) + ", acc balanced: " + str(round(acc_balanced_tf_idf, 3))
         print(info_to_print)
@@ -277,6 +296,9 @@ def bopf_best_classifier(bopf, bopf_t, output_dict, top_n, window_type="fraction
           ", wl:", output_dict["bop_wl"][s_index2],
           "-> cv_acc:", round(output_dict["bop_cv_acc2"][s_index2], 3),
           ", balanced acc:", round(rbest_tf_idf, 3))
+
+    pd.DataFrame(out_centroid_dict).to_csv(out_centroid_dict_csv, index=False)
+    pd.DataFrame(out_tf_idf_dict).to_csv(out_tf_idf_dict_csv, index=False)
 
     if rbest_centroid > rbest_tf_idf:
         pred_label, valid_train_bop, info = bopf_classifier(bopf, bopf_t, output_dict, s_index1, classifier="centroid", window_type=window_type)

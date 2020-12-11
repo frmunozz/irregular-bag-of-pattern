@@ -4,6 +4,7 @@ import pandas as pd
 from scipy.stats import f_oneway
 from sklearn.metrics import balanced_accuracy_score
 import os
+from sklearn import preprocessing
 
 
 def _load_file(filename, **kwargs):
@@ -66,6 +67,8 @@ def _load_numpy(data_path, **kwargs):
 
 def load_numpy_dataset(data_path, file_base):
     dataset = np.load(os.path.join(data_path, file_base % "d"), allow_pickle=True)
+    for i in range(dataset.size):
+        dataset[i] = preprocessing.scale(dataset[i])
     times = np.load(os.path.join(data_path, file_base % "t"), allow_pickle=True)
     labels = np.load(os.path.join(data_path, file_base % "l"), allow_pickle=True)
     return dataset, times, labels.astype(int), len(dataset)
@@ -280,7 +283,7 @@ class BagOfPatternFeature(object):
 
         self.train_bop_matrix = np.zeros((self.m, self.bopsize))
         count_empty_segments = 0
-        count_small_ts = 0
+        count_small_ts = 0  
 
         self.tlabel = np.sort(np.unique(self.labels))
         self.c = self.tlabel.shape[0]
@@ -296,11 +299,11 @@ class BagOfPatternFeature(object):
             pword = -1
             data = self.dataset[k]
             time_stamps = self.times[k]
-            n = data.size
             i = 0
             j = 1
             cum1_data = self.cum1[k]
             cum2_data = self.cum2[k]
+            n = len(data)
             ts_width = time_stamps[n-1] - time_stamps[0]
             if n < 6:
                 count_small_ts += 1
