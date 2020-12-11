@@ -63,6 +63,7 @@ class DTWBase(object):
 		return self.warping_matrix
 
 
+
 class IrregularDTW(DTWBase):
 	'''
 	Adapted DTW to handle empty segments represented by null values
@@ -254,3 +255,40 @@ class IrregularDTW(DTWBase):
 		for k in range(len(path)):
 			i,j = path[k]
 			ax2.plot([j*window + window/2, i*window + window /2], [0, 1], color="orange")
+
+
+
+
+class MultiBandDTW(IrregularDTW):
+    def __init__(self, arr1, arr2, n_bands=6):
+        super().__init__(arr1, arr2)
+        self.n_bands = n_bands
+
+    def path_step_status(self, i, j):
+        for b in range(self.n_bands):
+            pair1 = self.arr1[i][b]
+            pair2 = self.arr2[i][b]
+            if all(~np.isnan(pair1)) and all(~np.isnan(pair2)):
+                return 1
+        return 0
+
+    def cost(self, i, j):
+        d = 0
+        c_bands = 0
+        for b in range(self.n_bands):
+            pair1 = self.arr1[i][b]
+            pair2 = self.arr2[i][b]
+            if all(~np.isnan(pair1)) and all(~np.isnan(pair2)):
+                c_bands += 1
+                for k in range(2):
+                    d += (pair1[k] - pair2[k]) ** 2
+
+        if c_bands == 0:
+            raise ValueError("c_bands shouldnt be 0")
+
+        return d / c_bands
+
+
+
+        
+        

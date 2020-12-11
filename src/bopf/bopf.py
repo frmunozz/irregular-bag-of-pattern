@@ -421,7 +421,7 @@ class BagOfPatternFeature(object):
             elif msw == 0 and msa != 0:
                 self.bop_f_a[bop_f_a_i] = np.inf
             else:
-                self.bop_f_a[bop_f_a_i] = np.round(msa / msw, 5)
+                self.bop_f_a[bop_f_a_i] = msa / msw
 
             # if msa != 0 or msw != 0:
             #     print("j={}, msw={}, msw={}".format(j, msa, msw))
