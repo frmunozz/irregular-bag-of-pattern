@@ -35,6 +35,30 @@ def bruteforce_classifier(data_path, train_base, test_base, dmatrix):
 
 	return test_labels, pred_labels, acc, balanced_acc
 
+def brute_force_classifier_mb(data_path, train_base, test_base, dmatrix_mb):
+	train_labels = np.load(os.path.join(data_path, train_base % "l"), allow_pickle=True)
+	test_labels = np.load(os.path.join(data_path, test_base % "l"), allow_pickle=True)
+
+	n = len(train_labels)
+	m = len(test_labels)
+	for j in range(m):
+		dmin = np.inf
+		mink = -1
+		for i in range(n):
+			d = 0
+			for dmatrix in dmatrix_mb:
+				d += dmatri[i][j]
+			if d < dmin:
+				dmin = dist_type
+				mink = i
+		pred_labels.append(train_labels[mink])
+
+	balanced_acc = balanced_accuracy_score(test_labels, pred_labels)
+	acc = accuracy_score(test_labels, pred_labels)
+
+	return test_labels, pred_labels, acc, balanced_acc
+
+
 
 def plot_confusion_matrix(cm, classes,
                           normalize=False,
@@ -78,7 +102,7 @@ if __name__ == "__main__":
 	# wdf_size_arr = [1321, 2202, 4405]
 	n_process = 8
 
-	data_path = os.path.join(main_path, "data", "plasticc_subsets", "ddf_wdf_split_min_detection", "3_min")
+	data_path = os.path.join(main_path, "data", "plasticc_subsets", "ddf_wdf_split_min_detection", "3_min_mb")
 	output_report_path = os.path.join(data_path, "brute_force_classification_reports")
 	output_file_log = os.path.join(output_report_path, "dmatrix_plasticc_log.txt")
 
