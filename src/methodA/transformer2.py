@@ -80,8 +80,8 @@ class BOPTransformer(AbstractCore):
         return norm.ppf(points, mean, std)
 
     def _trend_bp(self):
-        ini = np.pi/4
-        end = -np.pi/4
+        ini = np.pi/2
+        end = -np.pi/2
         return np.linspace(ini, end, self["trend_alph_size"] + 1)[1:-1]
 
     def _cumsum(self, data, n):
@@ -252,16 +252,21 @@ class BOPTransformer(AbstractCore):
         return val, char
 
     def _slope(self, flux, mjd, i: int, j: int):
+        if i > j:
+            raise ValueError("i cannot be higher than j")
         if j - i <= 1:
             self.logger.warning("slope cannot be computed with 1 value. Set to 0")
             return 0
         if all(flux[x] == flux[i] for x in range(i,j)):
             self.logger.warning("all flux values are the same, slope value set to 0.")
             return 0
+        if all(mjd[x] == mjd[i] for x in range(i,j)):
+            self.logger.warning("all times are the same, slope value set to inf.")
+            return np.inf
 
         slope, _, _, _, _ = linregress(mjd[i:j], flux[i:j])
-        if np.isnan(slope) or np.isinf(slope):
-            self.logger.warning("slope value {} is bad".format(slope))
+        if np.isnan(slope):
+            self.logger.warning("slope value {} is bad, times={}, flux={}".format(slope, mjd[i:j], flux[i:j]))
             slope = 0
         return slope
 
@@ -281,6 +286,7 @@ class BOPTransformer(AbstractCore):
         for i, ts in enumerate(dataset):
             ret = BOPSparseRepresentation(_format=self._format)
             observations = ts.observations
+            observations = observations.sort_values(by=["time"])
             for band_id, band_key in _band_map.items():
                 tmp = observations[observations["band"] == band_key]
                 ret_tmp, doc = self._bop(tmp["flux"].to_numpy(), tmp["time"].to_numpy(), tmp.shape[0])

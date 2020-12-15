@@ -33,7 +33,7 @@ if __name__ == "__main__":
     min_win = 5  # days
     max_win = 850  # days
     n_win = 40
-    wl_arr = [1, 2, 3, 4]
+    wl_arr = [2, 3, 4]
     win_arr = np.logspace(np.log10(min_win), np.log10(max_win), n_win)
     params = {
         "special_character": True,
