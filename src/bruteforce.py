@@ -29,8 +29,8 @@ def worker_twed(X_train, X_test, t_train, t_test, i_subset, j_subset, out_q):
                 d = ctwed(X_train[i].astype(float), t_train[i].astype(float), X_test[j].astype(float), t_test[j].astype(float), 0, 0.1)
                 rows[i][j] = d
         out_q.put((i_subset, j_subset, rows))
-    except:
-        print("worker failed")
+    except Exception as e:
+        print("worker failed with error code:", e)
     finally:
         print("worker '%s' done" % mp.current_process().name)
 
