@@ -92,6 +92,7 @@ def create_logger(module, class_name):
 
     # Create a logger, with the previously-defined handler
     logger = logging.getLogger("{}.{}".format(module, class_name))
+    logger.propagate = False
     logger.setLevel(logging.DEBUG)  # highest level
     logger.addHandler(console_handler)
 

@@ -18,22 +18,12 @@ if __name__ == "__main__":
     # df = pd.read_csv(os.path.join(main_path, "data", "training_set.csv.zip"))
     # df_meta = pd.read_csv(os.path.join(main_path, "data", "training_set_metadata.csv"))
 
-    band_map = {
-        0: 'lsstu',
-        1: 'lsstg',
-        2: 'lsstr',
-        3: 'lssti',
-        4: 'lsstz',
-        5: 'lssty',
-    }
-
-    n_process = 1
-    multiprocessing = False
-    band = band_map[5]
+    n_process = 8
+    multiprocessing = True
     min_win = 5  # days
     max_win = 850  # days
     n_win = 40
-    wl_arr = [2, 3, 4]
+    wl_arr = [1, 2, 3, 4]
     win_arr = np.logspace(np.log10(min_win), np.log10(max_win), n_win)
     params = {
         "special_character": True,
@@ -44,7 +34,7 @@ if __name__ == "__main__":
     print("Generating dataset...")
     # res, labels = gen_dataset(df, df_meta)
     res, labels = gen_dataset_from_h5("plasticc_balanced_combined_classes_small_wfd")
-    res2 = single_band_dataset(res, band)
+    # res2 = single_band_dataset(res, band)
 
     # print("splitting dataset...")
     # train_res, test_res, train_labels, test_labels = train_test_split(res, labels,
@@ -61,7 +51,7 @@ if __name__ == "__main__":
             wl_arr_extend.append(wl)
             win_arr_extend.append(win)
 
-    test_res = res2
+    test_res = res
     print("size of dataset to transform:", test_res.size)
     print("running transformer using {} process".format(n_process))
     repr_arr, failed_arr = transform_to_bop(test_res, tuples, n_process=n_process,

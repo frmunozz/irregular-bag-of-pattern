@@ -74,6 +74,8 @@ class BOPTransformer(AbstractCore):
     def _mean_bp(self, flux):
         points = np.linspace(0, 1, self["alph_size"] + 1)[1:-1]
         if self["word_length"] == 1:
+            if len(flux) == 0:
+                raise ValueError("empty flux arr")
             mean, std = np.mean(flux), np.std(flux)
         else:
             mean, std = 0, 1
@@ -282,22 +284,28 @@ class BOPTransformer(AbstractCore):
 
     def transform_dataset(self, dataset: np.ndarray) -> (BOPSparseRepresentation, int):
         matrix = BOPSparseRepresentation(_format=self._format)
-        n = dataset.size
+        empty_vec = np.zeros(self._bop_size())
         for i, ts in enumerate(dataset):
-            ret = BOPSparseRepresentation(_format=self._format)
             observations = ts.observations
             observations = observations.sort_values(by=["time"])
+            ret = BOPSparseRepresentation(_format=self._format)
             for band_id, band_key in _band_map.items():
                 tmp = observations[observations["band"] == band_key]
-                ret_tmp, doc = self._bop(tmp["flux"].to_numpy(), tmp["time"].to_numpy(), tmp.shape[0])
-                if ret.size == 0:
+                if len(tmp) == 0:
+                    self.logger.warning("Empty band, skipping and setting repr to {} zeros".format(self._bop_size()))
+                    ret_tmp = BOPSparseRepresentation(_format=self._format)
+                    ret_tmp.store_repr(empty_vec)
+                else:
+                    ret_tmp, doc = self._bop(tmp["flux"].to_numpy(), tmp["time"].to_numpy(), tmp.shape[0])
+
+                if ret.vector is None:
                     ret.copy_from(ret_tmp)
                 else:
-                    ret.vstack_repr(ret_tmp)
-            if matrix.size == 0:
+                    ret.hstack_repr(ret_tmp)
+            if matrix.vector is None:
                 matrix.copy_from(ret)
             else:
                 matrix.vstack_repr(ret)
 
-        failed = self.count_failed(matrix.to_array())
+        failed = self.count_failed( matrix.to_array())
         return matrix, failed
