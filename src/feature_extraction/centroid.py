@@ -13,7 +13,7 @@ class CentroidClass(TransformerMixin, BaseEstimator):
 
     def combine_vectors(self, X, y):
         n, bop_size = X.shape
-        class_X = sparse.csr_matrix((self.n_classes, bop_size))
+        class_X = sparse.lil_matrix((self.n_classes, bop_size))
         class_counter = np.zeros(self.n_classes)
         for i in range(n):
             lbl = y[i]

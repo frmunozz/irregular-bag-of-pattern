@@ -1,12 +1,13 @@
 from .feature_extraction.text import ParameterSelector, MPTextGenerator, CountVectorizer
 from .feature_extraction.vector_space_model import VSM
 from .feature_extraction.centroid import CentroidClass
-from .feature_selection.select_k_best import SelectKBest
+from .feature_selection.select_k_best import SelectKTop
 from .decomposition.lsa import LSA
+from .neighbors import KNeighborsClassifier
 
 from sklearn.preprocessing import Normalizer, StandardScaler
-from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
+from sklearn.feature_selection import f_classif, VarianceThreshold
 
 
 class PipelineBuilder:
@@ -48,7 +49,7 @@ class PipelineBuilder:
         self.pipe.append(("vsm", VSM(class_based=class_based, classes=self.classes, norm=norm, use_idf=use_idf,
                                      smooth_idf=smooth_idf, sublinear_tf=sublinear_tf)))
 
-    def set_reducer(self, spatial_complexity, reducer_type="lsa",
+    def set_reducer(self, spatial_complexity=20, reducer_type="lsa",
                     algorithm="randomized", n_iter=5,
                     random_state=None, tol=0.):
         """
@@ -64,12 +65,14 @@ class PipelineBuilder:
         class_based_1 = self.class_based and self.class_type == "type-1"
         class_based_2 = self.class_based and self.class_type == "type-2"
         if class_based_1:
-            red = LSA(spatial_complexity, algorithm=algorithm, n_iter=n_iter, random_state=random_state, tol=tol)
+            red = LSA(sc=spatial_complexity, algorithm=algorithm, n_iter=n_iter, random_state=random_state, tol=tol)
         else:
             if reducer_type.lower() == "lsa":
-                red = LSA(spatial_complexity, algorithm=algorithm, n_iter=n_iter, random_state=random_state, tol=tol)
+                red = LSA(sc=spatial_complexity, algorithm=algorithm, n_iter=n_iter, random_state=random_state, tol=tol)
             elif reducer_type.lower() == "anova":
-                red = SelectKBest(spatial_complexity)
+                print(spatial_complexity)
+                self.pipe.append(("variance", VarianceThreshold()))
+                red = SelectKTop(sc=spatial_complexity, score_func=f_classif)
             else:
                 raise ValueError("reducer '%s' not implemented" % reducer_type)
 
@@ -100,7 +103,9 @@ class PipelineBuilder:
         :param n_neighbors:
         :return:
         """
-        self.pipe.append(("classif", KNeighborsClassifier(n_neighbors=n_neighbors)))
+
+        self.pipe.append(("classif", KNeighborsClassifier(n_neighbors=n_neighbors, classes=self.classes,
+                                                          useClasses=self.class_based)))
 
     def build(self):
         """

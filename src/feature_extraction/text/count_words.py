@@ -31,7 +31,7 @@ class Vectorizer(TransformerMixin, BaseEstimator):
 
     def __init__(self, **kwargs):
         self.bop_size = get_vocabulary_size(kwargs.get("alph_size"), kwargs.get("word_length"),
-                                            kwargs.get("empty_handler"))
+                                            kwargs.get("irr_handler"))
         self.bands = kwargs.get("bands")
 
     def fit(self, X, y=None, **kwargs):

@@ -14,7 +14,7 @@ class VSM(TfidfTransformer):
 
     def combine_vectors(self, X, y):
         n, bop_size = X.shape
-        class_X = sparse.csr_matrix((self.n_classes, bop_size))
+        class_X = sparse.lil_matrix((self.n_classes, bop_size))
         for i in range(n):
             lbl = y[i]
             k = np.where(lbl == self.classes)[0]
