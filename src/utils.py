@@ -10,6 +10,13 @@ import matplotlib.pyplot as plt
 import itertools
 
 
+def get_vocabulary_size(alph_size, wl, empty_handler="special_character"):
+    if empty_handler == "#":
+        return (alph_size + 1) ** wl
+    else:
+        return alph_size ** wl
+
+
 def validate_keys(kwargs, good_kwargs):
     """
     validate keyword arguments,

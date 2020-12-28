@@ -2,12 +2,11 @@ import multiprocessing as mp
 import queue
 from .transformer2 import BOPTransformer
 from .representation import BOPSparseRepresentation
-from .reducer import PCAReducer
 import numpy as np
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import LeaveOneOut, StratifiedKFold
-from sklearn.decomposition import PCA, TruncatedSVD
-from ..predictors import predict_by_cosine, predict_by_euclidean
+from sklearn.model_selection import StratifiedKFold
+from sklearn.decomposition import TruncatedSVD
+from src.Adeprecated.predictors import predict_by_cosine, predict_by_euclidean
 from sklearn.metrics import balanced_accuracy_score
 import time
 

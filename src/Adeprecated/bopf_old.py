@@ -1,6 +1,5 @@
-from .sax import Alphabet, SymbolicAggregateApproximation, PiecewiseAggregateApproximation
+from src.Adeprecated.sax import Alphabet, SymbolicAggregateApproximation, PiecewiseAggregateApproximation
 import numpy as np
-import pdb
 
 
 class BagOfPatternFeature(object):

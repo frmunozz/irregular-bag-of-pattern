@@ -29,7 +29,7 @@ def gen_dataset_from_h5(filename):
     ):
         labels.append(reference_object.metadata["class"])
         res.append(TimeSeriesObject.from_astronomical_object(reference_object))
-    return np.array(res), np.array(labels)
+    return np.array(res), np.array(labels), dataset.metadata
 
 
 def single_band_dataset(multi_band_dataset: np.ndarray, band):

@@ -1,64 +1,24 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import os
-import pandas as pd
 from sklearn import preprocessing
-from sklearn.linear_model import LinearRegression
-from scipy import stats
 from collections import defaultdict
-from ..pydtw import IrregularDTW
+from src.Adeprecated.pydtw import IrregularDTW
+from .tva import tva
 import multiprocessing as mp
 from sklearn.metrics import balanced_accuracy_score, accuracy_score
 import queue
 
 
-def get_slope(times, fluxes):
-	slope, intercept, r_value, p_value, std_err = stats.linregress(times,fluxes)
-	return slope
-
-
-def get_value(fluxes):
-	return np.mean(fluxes)
-
-
-def tvia(times, fluxes, window, threshold=2):
-	tva_vec = []
-	ini_time = 0
-	end_time = ini_time + window
-	k = 0
-	i = 0
-	while k + threshold <= len(fluxes):
-		while times[k] <= end_time:
-			if k == len(fluxes)-1:
-				break
-			k += 1
-		if k - i >= threshold:
-			time_seg = times[i:k]
-			fluxes_seg = fluxes[i:k]
-			if threshold > 1:
-				slope = get_slope(time_seg, fluxes_seg)
-			else:
-				slope = 0
-			val = get_value(fluxes_seg)
-			tva_vec.append((True, (slope, val, i, k, ini_time, end_time)))
-		ini_time = times[k]
-		end_time = ini_time + window
-		i = k
-		k += 1
-
-	return tva_vec
-
-def mtvia_arr(times, fluxes, windows, threshold=2):
+def mtva_arr(times, fluxes, windows):
 	vec = []
 	size = 0
 	for window in windows:
-		tva_repr = tvia(times, fluxes, window, threshold=threshold)
-		tva_repr_arr = _mtvia_to_arr(tva_repr)
+		tva_repr = tva(times, fluxes, window)
+		tva_repr_arr = _mtva_to_arr(tva_repr)
 		vec.append(tva_repr_arr)
 		size += len(tva_repr_arr)
 	return vec, size
 
-def _mtvia_to_arr(tva_data):
+def _mtva_to_arr(tva_data):
 	arr = []
 	for i in range(len(tva_data)):
 		valid, values = tva_data[i]
@@ -71,7 +31,6 @@ def _mtvia_to_arr(tva_data):
 			# arr.append(None)
 	return arr
 
-
 def generate_windows(ts_sizes, ts_width):
 	mean_size = np.mean(ts_sizes)
 	mean_width = np.mean(ts_width)
@@ -82,19 +41,18 @@ def generate_windows(ts_sizes, ts_width):
 	print("Datset of mean size:", round(mean_size, 3), " and mean width:", round(mean_width, 3))
 	return windows
 
-def dataset_mtvia_repr(dataset_values, dataset_times, windows, threshold=2):
+def dataset_mtva_repr(dataset_values, dataset_times, windows):
 	dataset_mtva = []
-	dataset_repr_sizes = []
+	mtva_sizes = []
 	for i in range(len(dataset_values)):
 		times = np.array(dataset_times[i])
 		times = times - times[0]
 		fluxes = preprocessing.scale(dataset_values[i])
-		mtva_repr_arr, size = mtvia_arr(times, fluxes, windows, threshold=threshold)
+		mtva_repr_arr, size = mtva_arr(times, fluxes, windows)
 		dataset_mtva.append(mtva_repr_arr)
-		dataset_repr_sizes.append(size)
+		mtva_sizes.append(size)
 
-
-	return dataset_mtva, dataset_repr_sizes
+	return dataset_mtva, mtva_sizes
 
 
 def find_closest(train_tva, query_tva, n):
@@ -116,7 +74,7 @@ def find_closest(train_tva, query_tva, n):
 
 
 
-def mtvia_distance_worker(tvas_to_query, train_tva, n, lock, out_q):
+def mtva_distance_worker(tvas_to_query, train_tva, n, lock, out_q):
 
 	try: 
 		print("start worker '%s'" % mp.current_process().name)
@@ -144,7 +102,7 @@ def mtvia_distance_worker(tvas_to_query, train_tva, n, lock, out_q):
 	finally:
 		print("worker '%s' DONE" % mp.current_process().name)
 
-def mtvia_distance_mp(train_tva, test_tva, n, n_process="default"):
+def mtva_distance_mp(train_tva, test_tva, n, n_process="default"):
 	if n_process == "default":
 		n_process = mp.cpu_count()
 
@@ -165,7 +123,7 @@ def mtvia_distance_mp(train_tva, test_tva, n, n_process="default"):
 
 	jobs = []
 	for w in range(n_process):
-		p = mp.Process(target=mtvia_distance_worker, args=(tvas_to_query, train_tva, n, lock, result_queue))
+		p = mp.Process(target=mtva_distance_worker, args=(tvas_to_query, train_tva, n, lock, result_queue))
 		jobs.append(p)
 		p.start()
 

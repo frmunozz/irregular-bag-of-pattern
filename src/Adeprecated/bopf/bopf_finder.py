@@ -1,5 +1,5 @@
 from collections import defaultdict
-from ..utils import sort_trim_arr, load_numpy_dataset
+from src.utils import sort_trim_arr, load_numpy_dataset
 from .classifier import classify, classify2
 from .bopf import BagOfPatternFeature
 import multiprocessing as mp

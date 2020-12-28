@@ -3,7 +3,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import balanced_accuracy_score
 from sklearn.model_selection import LeaveOneOut, StratifiedKFold
 
-from ..utils import AbstractCore
+from src.utils import AbstractCore
 from .transformer import CountVectorizer, transformer_mp
 from .classify import cv_classify, simple_train_test_classify
 from .class_vectors import predict_by_centroid, predict_by_tf_idf, compute_class_centroids, compute_class_tf_idf

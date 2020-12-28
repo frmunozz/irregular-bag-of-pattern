@@ -1,4 +1,4 @@
-from ..utils import AbstractCore
+from src.utils import AbstractCore
 import copy
 from .representation import BOPSparseRepresentation
 import numpy as np

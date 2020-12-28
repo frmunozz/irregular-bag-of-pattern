@@ -1,7 +1,6 @@
-from src.core.timeseries import UTS, EmptyIrregularUTS, IrregularUTS
-from src.core.sliding_window import SlidingWindow
+from src.Adeprecated.core.timeseries import UTS, EmptyIrregularUTS, IrregularUTS
+from src.Adeprecated.core import SlidingWindow
 import numpy as np
-import pdb
 
 
 class PiecewiseAggregateApproximation(object):

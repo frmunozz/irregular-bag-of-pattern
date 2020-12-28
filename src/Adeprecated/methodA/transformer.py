@@ -1,4 +1,4 @@
-from ..utils import AbstractCore
+from src.utils import AbstractCore
 import copy
 import numpy as np
 from scipy import sparse

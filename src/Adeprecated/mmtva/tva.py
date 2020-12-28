@@ -1,12 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import os
-import pandas as pd
 from sklearn import preprocessing
-from sklearn.linear_model import LinearRegression
 from scipy import stats
 from collections import defaultdict
-from ..pydtw import IrregularDTW
+from src.Adeprecated.pydtw import IrregularDTW
 import multiprocessing as mp
 from sklearn.metrics import balanced_accuracy_score, accuracy_score
 import queue

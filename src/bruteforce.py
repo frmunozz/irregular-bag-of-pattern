@@ -95,7 +95,6 @@ def dmatrix_multiprocessing_v2(train_base, test_base, data_path, n_process=8, di
     return dmatrix
 
 
-
 def dmatrix_multiprocessing(in_folder, n1, n2, c, n_process, out_folder, dist_type="dtw"):
     X_train = np.load(in_folder + "train_d_n{}_c{}.npy".format(n1, c), allow_pickle=True)
     X_test = np.load(in_folder + "test_d_n{}_c{}.npy".format(n2, c), allow_pickle=True)

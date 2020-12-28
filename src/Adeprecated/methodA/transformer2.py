@@ -1,8 +1,8 @@
-from ..utils import AbstractCore
+from src.utils import AbstractCore
 import copy
 import string
 import numpy as np
-from ..timeseries_object import TimeSeriesObject
+from src.timeseries_object import TimeSeriesObject
 from .representation import BOPSparseRepresentation
 from scipy.stats import norm, linregress
 
