@@ -11,8 +11,8 @@ class ParameterSelector(TransformerMixin, BaseEstimator):
         self.wl_arr = wl_arr
 
     def fit(self, X, y=None, **kwargs):
-        print("gettign the count words for win idx: %f.3 and wl idx: %d" % (
-            self.win_arr[self.idx], self.wl_arr[self.idx]))
+        # print("gettign the count words for win idx: %f.3 and wl idx: %d" % (
+        #     self.win_arr[self.idx], self.wl_arr[self.idx]))
         return self
 
     def transform(self, X, **kwargs):
