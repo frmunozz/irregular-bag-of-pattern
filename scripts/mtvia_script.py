@@ -4,8 +4,7 @@ main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, main_path)
 
 # from src.mmtva.tva import tva_distance_mp, classify_tva
-from src.mmtva.tvia import dataset_mtvia_repr, generate_windows, mtvia_distance_mp, classify_tva
-from sklearn.metrics import classification_report, confusion_matrix
+from src.Adeprecated.mmtva.tvia import dataset_mtvia_repr, generate_windows, mtvia_distance_mp, classify_tva
 from src.utils import load_numpy_dataset
 import matplotlib.pyplot as plt
 import numpy as np

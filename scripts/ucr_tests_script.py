@@ -415,7 +415,7 @@ def dataset_to_corpus_worker(dataset, times, full_alphabet, lock, idx_queue, out
 
 def dataset_to_corpus_mp(dataset, times, n_process=None, **kwargs):
     
-    print("transformation parameters:")
+    print("transformer parameters:")
     print("word_length=", kwargs.get("word_length"))
     print("windows=", kwargs.get("windows")) 
     print("features=", kwargs.get("feature"))
@@ -476,7 +476,7 @@ def dataset_to_corpus(dataset, times, alph_size=8,
                          tol=3, bp_strategy="uniform",
                          global_break_point=False, numerosity_reduction=False):
     
-    print("transformation parameters:")
+    print("transformer parameters:")
     print("word_length=", word_length)
     print("windows=", windows) 
     print("features=", feature)

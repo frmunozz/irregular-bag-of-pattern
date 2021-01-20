@@ -1,4 +1,4 @@
-from sklearn.decomposition import PCA as skl_pca
+from sklearn.decomposition import IncrementalPCA as skl_pca
 
 
 class PCA(skl_pca):

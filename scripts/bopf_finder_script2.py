@@ -3,7 +3,7 @@ import os
 main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, main_path)
 
-from src.bopf.bopf_finder import bopf_param_finder_mp, bopf_best_classifier
+from src.Adeprecated.bopf.bopf_finder import bopf_param_finder_mp, bopf_best_classifier
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt

@@ -21,6 +21,12 @@ class VSM(TfidfTransformer):
             class_X[k] += X[i]
         return class_X
 
+    def get_scheme_notation(self):
+        scheme = "l" if self.sublinear_tf else "n"
+        scheme += "t" if self.use_idf else "n"
+        scheme += "c" if self.norm == "l2" else "n"
+        return scheme
+
     def fit(self, X, y=None):
         if self.class_based:
             if y is None:

@@ -5,11 +5,10 @@ main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, main_path)
 import numpy as np
 
-from src.methodA.multitask import bopf_transformer_mp, bopf_transformer_separated_mp
-from src.methodA.transformer import BOPFTransformer
-from src.utils import read_numpy_dataset, read_file_regular_dataset, plot_confusion_matrix
-from src.methodA.class_vectors import predict_by_euclidean, predict_by_cosine
-from sklearn.metrics import balanced_accuracy_score, accuracy_score, classification_report, confusion_matrix
+from src.Adeprecated.methodA.multitask import bopf_transformer_separated_mp
+from src.utils import read_numpy_dataset, plot_confusion_matrix
+from src.Adeprecated.methodA.class_vectors import predict_by_euclidean, predict_by_cosine
+from sklearn.metrics import balanced_accuracy_score, confusion_matrix
 from sklearn.model_selection import train_test_split
 import time
 import matplotlib.pyplot as plt
