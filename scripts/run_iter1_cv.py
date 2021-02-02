@@ -206,7 +206,8 @@ def grid_search_multi_rest(d_train, l_train, wins, wls, accs, doc_kwargs, class_
 
 
 if __name__ == '__main__':
-    dataset, labels_, metadata = gen_dataset_from_h5("plasticc_augment_ddf_50")
+    ini = time.time()
+    dataset, labels_, metadata = gen_dataset_from_h5("plasticc_augment_ddf_100")
     classes = np.unique(labels_)
     sc = int(np.mean([len(ts.observations["flux"]) * 2 for ts in dataset]))
     print("dataset mean spatial complexity:", sc)
@@ -216,10 +217,10 @@ if __name__ == '__main__':
     std_time = np.std(time_durations)
 
     wls = [2, 3, 4, 5, 6]
-    # wins = np.logspace(np.log10(10), np.log10(mean_time), 20)
-    wins = [50, 80]
+    wins = np.logspace(np.log10(10), np.log10(mean_time), 20)
+    # wins = [50, 80]
     print("windows:", wins)
-    sc = 200
+    # sc = 200
 
     doc_kwargs = {
         "alphabet_size": np.array([4]),
@@ -233,17 +234,17 @@ if __name__ == '__main__':
     use_idf = True  # options: True, False
     sublinear_tf = True  # options: True, False
 
-    # print("::::::::::::::: START GRID SEARCH CV ::::::::::::::: ")
-    # output_dict = grid_search(dataset, labels_, wins, wls, doc_kwargs,
-    #                           class_based=class_based, classes=classes,
-    #                           normalize=normalize, use_idf=use_idf,
-    #                           sublinear_tf=sublinear_tf, spatial_comp=sc)
-    # print("::::::::::::::: END GRID SEARCH CV ::::::::::::::: ")
-    # print(":::::::::::::::::::::::::::::::::::::::::::::::::: ")
-    # print("::::::::::::::: SAVING ::::::::::::::::::::::::::: ")
-    # df = pd.DataFrame(output_dict)
-    out_file = os.path.join(main_path, "data", "results", "plasticc", "iter1_augment_ddf_50.csv")
-    # df.to_csv(out_file, index=False)
+    print("::::::::::::::: START GRID SEARCH CV ::::::::::::::: ")
+    output_dict = grid_search(dataset, labels_, wins, wls, doc_kwargs,
+                              class_based=class_based, classes=classes,
+                              normalize=normalize, use_idf=use_idf,
+                              sublinear_tf=sublinear_tf, spatial_comp=sc)
+    print("::::::::::::::: END GRID SEARCH CV ::::::::::::::: ")
+    print(":::::::::::::::::::::::::::::::::::::::::::::::::: ")
+    print("::::::::::::::: SAVING ::::::::::::::::::::::::::: ")
+    df = pd.DataFrame(output_dict)
+    out_file = os.path.join(main_path, "data", "results", "plasticc", "iter1_augment_ddf_100.csv")
+    df.to_csv(out_file, index=False)
 
     df = pd.read_csv(out_file)
 
@@ -262,7 +263,8 @@ if __name__ == '__main__':
     print(":::::::::::::::::::::::::::::::::::::::::::::::::: ")
     print("::::::::::::::: SAVING ::::::::::::::::::::::::::: ")
     df = pd.DataFrame(output_dict2)
-    out_file = os.path.join(main_path, "data", "results", "plasticc", "iter2_augment_ddf_50.csv")
+    out_file = os.path.join(main_path, "data", "results", "plasticc", "iter2_augment_ddf_100.csv")
     df.to_csv(out_file, index=False)
+    print("::::::::: TOTAL RUN TIME %.3f :::::::::::::::::::: " % (time.time() - ini))
 
 

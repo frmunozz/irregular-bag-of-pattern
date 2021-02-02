@@ -36,7 +36,7 @@ class MPTextGenerator(TransformerMixin, BaseEstimator):
     def transform(self, X, **kwargs):
 
         r = process_map(self.transform_object, X, max_workers=self.n_jobs,
-                        desc="[win: %.3f, wl: %d]" % (self._win, self._wl))
+                        desc="[win: %.3f, wl: %d]" % (self._win, self._wl), chunksize=8)
         if self._direct_bow:
             bop_size = self.get_bop_size()
             new_x = merge_documents(np.array(r), self.bands, bop_size)

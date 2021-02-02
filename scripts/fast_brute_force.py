@@ -15,6 +15,7 @@ import itertools
 
 bands = ["lsstg", "lssti", "lsstr", "lsstu", "lssty", "lsstz"]
 
+
 def _to_arr(dataset, name):
     res = []
     labels = []
@@ -72,8 +73,20 @@ class Classify:
         d = 0
         for b in bands:
             if vi[b] is not None and vj[b] is not None:
-                d+= dtw.distance_fast(vi[b].fluxes, vj[b].fluxes)
+                d += dtw.distance_fast(vi[b].fluxes, vj[b].fluxes)
         return d
+
+    def _dist2(self, vi, vj):
+        n = 0
+        s = 0
+        for b in bands:
+            if vi[b] is not None and vj[b] is not None:
+                s += 1/dtw.distance_fast(vi[b].fluxes, vj[b].fluxes)
+                n += 1
+        if n == 0:
+            return np.inf
+        else:
+            return 1 / (n * s)
 
     def _classify(self, i):
         vi = self.d_test[i]
@@ -81,7 +94,7 @@ class Classify:
         pred = -1
         for j in range(len(self.l_train)):
             vj = self.d_train[j]
-            d = self._dist(vi, vj)
+            d = self._dist2(vi, vj)
             if d < min_dist:
                 min_dist = d
                 pred = self.l_train[j]
@@ -91,6 +104,42 @@ class Classify:
         pred = process_map(self._classify, self._iter, max_workers=self.n_jobs, desc="classifying")
         print("balanced acc:", balanced_accuracy_score(self.l_test, pred))
         return pred
+
+
+class CVClassify:
+    def __init__(self, train_name, n_jobs=6):
+        self.d_train, self.l_train = _to_arr(avocado.load(train_name, verify_input_chunks=False), train_name)
+        self.n_jobs = n_jobs
+        self._iter = range(len(self.l_train))
+
+    def _dist(self, vi, vj):
+        d = 0
+        for b in bands:
+            if vi[b] is not None and vj[b] is not None:
+                d += dtw.distance_fast(vi[b].fluxes, vj[b].fluxes)
+        return d
+
+    def _classify(self, i):
+        vi = self.d_train[i]
+        distances = []
+        for j in range(len(self.l_train)):
+            vj = self.d_train[j]
+            d = self._dist(vi, vj)
+            distances.append(d)
+
+        d_sort = np.argsort(distances)
+        assert np.argmin(distances) == d_sort[0]
+        assert distances[d_sort[0]] == 0
+
+        pred = self.l_train[d_sort[1]]
+
+        return pred
+
+    def classify(self):
+        pred = process_map(self._classify, self._iter, max_workers=self.n_jobs, desc="classifying")
+        print("balanced acc:", balanced_accuracy_score(self.l_train, pred))
+        return pred
+
 
 merged_labels = {
     6: 'Single microlens',
@@ -109,6 +158,7 @@ merged_labels = {
     95: 'SN',
     99: 'Unknown',
 }
+
 
 plot_labels_extra_short = {
     6: 'Single $\mu$-lens',
@@ -129,22 +179,36 @@ plot_labels_extra_short = {
 }
 
 if __name__ == '__main__':
-    train_name = "plasticc_train_ddf_100"
+    train_name = "plasticc_augment_ddf_100"
     test_name = "plasticc_test_ddf_100"
 
+    # print("load data")
+    # clssfy = Classify(train_name, test_name)
+    # print("predict and clasify")
+    # pred = clssfy.classify()
+    # real = clssfy.l_test
+    #
+    # reorder = [6, 15, 65, 88, 42, 52, 62, 64, 67, 90, 95, 16, 53, 92]
+    # classes_names = [plot_labels_extra_short[x] for x in reorder]
+    # cnf_matrix2 = confusion_matrix(real, pred, labels=reorder)
+    # fig = plt.figure(figsize=(10, 8))
+    # plot_confusion_matrix(cnf_matrix2, classes=classes_names, normalize=False,
+    #                       title='Conf. matrix DTW-raw [b_acc:%.3f]' % balanced_accuracy_score(real, pred))
+    # plt.savefig(os.path.join(main_path, "data", "plasticc", "conf_matrix_dtw_raw_augment_cv_100.png",), dpi=300)
+
     print("load data")
-    clssfy = Classify(train_name, test_name)
+    cv_classify = CVClassify(train_name)
     print("predict and clasify")
-    pred = clssfy.classify()
-    real = clssfy.l_test
+    pred = cv_classify.classify()
+    real = cv_classify.l_train
 
     reorder = [6, 15, 65, 88, 42, 52, 62, 64, 67, 90, 95, 16, 53, 92]
     classes_names = [plot_labels_extra_short[x] for x in reorder]
     cnf_matrix2 = confusion_matrix(real, pred, labels=reorder)
     fig = plt.figure(figsize=(10, 8))
     plot_confusion_matrix(cnf_matrix2, classes=classes_names, normalize=False,
-                          title='Conf. matrix DTW-raw augment [b_acc:%.3f]' % balanced_accuracy_score(real, pred))
-    plt.savefig(os.path.join(main_path, "data", "plasticc", "conf_matrix_dtw_raw_train_100.png",), dpi=300)
+                          title='Conf. matrix DTW-raw augment harmonic [b_acc:%.3f]' % balanced_accuracy_score(real, pred))
+    plt.savefig(os.path.join(main_path, "data", "plasticc", "conf_matrix_dtw_raw_augment_cv_100.png",), dpi=300)
 
     # with train: 0.347 acc
     # with augment: 0.466 acc
