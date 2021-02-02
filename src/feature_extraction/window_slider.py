@@ -196,6 +196,9 @@ class Segmentator:
         return segments, np.array([])
 
     def segmentate(self, ts: FastIrregularUTSObject, i, j, ini_time):
+        if self.k == 1:
+            return np.array([[i, j]]), np.array([])
+
         if self.index_based:
             return self._index_based_segmentate(ts.times[i:j], i, ini_time)
         else:

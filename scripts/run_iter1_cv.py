@@ -25,20 +25,48 @@ from src.decomposition import LSA, PCA
 from src.neighbors import KNeighborsClassifier
 from src.feature_extraction.window_slider import TwoWaysSlider
 
+from sklearn.feature_selection import VarianceThreshold
+
 _BANDS = ["lsstg", "lssti", "lsstr", "lsstu", "lssty", "lsstz"]
 
 
 def cv_score(d_train, l_train, win, wl, doc_kwargs,
              class_based=False, classes=None, normalize='l2',
-             use_idf=True, sublinear_tf=True, max_dropped="default", sc=100):
+             use_idf=True, sublinear_tf=True, max_dropped="default", sc=100, merged_quantities=True):
     ini = time.time()
-    text_gen = MPTextGenerator(bands=_BANDS, n_jobs=6, win=win, wl=wl, direct_bow=True, **doc_kwargs)
-    x = text_gen.fit_transform(d_train)
+    if len(doc_kwargs["quantity"]) > 1 and not merged_quantities:
+        quantities = doc_kwargs["quantity"]
+        alph_sizes = doc_kwargs["alphabet_size"]
+        x_arr = []
+        for q, a_size in zip(quantities, alph_sizes):
+            doc_kwargs["quantity"] = np.array([q])
+            doc_kwargs["alphabet_size"] = np.array([a_size])
+            text_gen = MPTextGenerator(bands=_BANDS, n_jobs=6, win=win, wl=wl, direct_bow=True, tol=wl * 2,
+                                       opt_desc=", %s" % q, **doc_kwargs)
+            x_i = text_gen.fit_transform(d_train)
+            x_arr.append(x_i)
+        x = sparse.hstack(x_arr, format="csr")
+        doc_kwargs["quantity"] = quantities
+        doc_kwargs["alphabet_size"] = alph_sizes
+
+    else:
+        text_gen = MPTextGenerator(bands=_BANDS, n_jobs=6, win=win, wl=wl, direct_bow=True, tol=wl * 2, **doc_kwargs)
+        x = text_gen.fit_transform(d_train)
+
     if max_dropped == "default":
         max_dropped = int(0.05 * len(l_train))
     dropped = len(np.where(np.sum(x, axis=1) == 0)[0])
     if dropped > max_dropped:
-        return None, None, text_gen, dropped
+        print("dropped because {} > {}".format(dropped, max_dropped))
+        return None, None, None, dropped
+
+    shape_before = x.shape
+    sel = VarianceThreshold(threshold=0)
+    x = sel.fit_transform(x)
+
+    print("shape before variance drop:", shape_before, ", shape after:", x.shape)
+
+    # define pipeline for CV score
     vsm = VSM(class_based=False, classes=classes, norm=normalize, use_idf=use_idf,
               smooth_idf=True, sublinear_tf=sublinear_tf)
     lsa = LSA(sc=min(sc, x.shape[1]-1), algorithm="randomized", n_iter=5, random_state=None, tol=0.)
@@ -48,7 +76,7 @@ def cv_score(d_train, l_train, win, wl, doc_kwargs,
     scores = cross_val_score(pipeline, x, l_train, scoring="balanced_accuracy", cv=5, n_jobs=6, verbose=0)
     end = time.time()
     print("[win: %.3f, wl: %d]:" % (win, wl), np.mean(scores), "+-", np.std(scores), " (time: %.3f sec)" % (end-ini))
-    return scores, pipeline, text_gen, dropped
+    return scores, pipeline, None, dropped
 
 
 def cv_score_multi_res(x, l_train, text="X",
@@ -74,7 +102,7 @@ def cv_score_multi_res(x, l_train, text="X",
 
 
 def grid_search(d_train, l_train, wins, wls, doc_kwargs, class_based=False, classes=None, normalize='l2',
-                use_idf=True, sublinear_tf=True, spatial_comp=100):
+                use_idf=True, sublinear_tf=True, spatial_comp=100, merged_quantities=True):
 
     output_dict = defaultdict(list)
     for wl in wls:
@@ -82,7 +110,8 @@ def grid_search(d_train, l_train, wins, wls, doc_kwargs, class_based=False, clas
             scores, pipeline, text_gen, dropped = cv_score(d_train, l_train, win, wl, doc_kwargs,
                                                            class_based=class_based, classes=classes,
                                                            normalize=normalize, use_idf=use_idf,
-                                                           sublinear_tf=sublinear_tf, sc=spatial_comp)
+                                                           sublinear_tf=sublinear_tf, sc=spatial_comp,
+                                                           merged_quantities=merged_quantities)
             if scores is None and pipeline is None:
                 # the iteration failed and we skip
                 output_dict["wl"].append(wl)
@@ -108,13 +137,17 @@ def grid_search(d_train, l_train, wins, wls, doc_kwargs, class_based=False, clas
 
 
 def grid_search_multi_rest(d_train, l_train, wins, wls, accs, doc_kwargs, class_based=False, classes=None, normalize='l2',
-                use_idf=True, sublinear_tf=True, spatial_comp=100):
+                use_idf=True, sublinear_tf=True, spatial_comp=100, merged_quantities=True):
     limit = 4
     tops = 5
     x_arr = []
     for win, wl in zip(wins, wls):
-        text_gen_i = MPTextGenerator(bands=_BANDS, n_jobs=6, win=win, wl=wl, direct_bow=True, **doc_kwargs)
+        text_gen_i = MPTextGenerator(bands=_BANDS, n_jobs=6, win=win, wl=wl, direct_bow=True, tol=wl * 2, **doc_kwargs)
         x_i = text_gen_i.fit_transform(d_train)
+        shape_before = x_i.shape
+        sel = VarianceThreshold(threshold=0)
+        x_i = sel.fit_transform(x_i)
+        print("shape before variance drop:", shape_before, ", shape after:", x_i.shape)
         x_arr.append(x_i)
 
     idxs = np.arange(len(wls))
@@ -206,8 +239,11 @@ def grid_search_multi_rest(d_train, l_train, wins, wls, accs, doc_kwargs, class_
 
 
 if __name__ == '__main__':
+    # set_name = "plasticc_augment_ddf_100"
+    set_name = "plasticc_train"
+
     ini = time.time()
-    dataset, labels_, metadata = gen_dataset_from_h5("plasticc_augment_ddf_100")
+    dataset, labels_, metadata = gen_dataset_from_h5(set_name)
     classes = np.unique(labels_)
     sc = int(np.mean([len(ts.observations["flux"]) * 2 for ts in dataset]))
     print("dataset mean spatial complexity:", sc)
@@ -216,19 +252,20 @@ if __name__ == '__main__':
     mean_time = np.mean(time_durations)
     std_time = np.std(time_durations)
 
-    wls = [2, 3, 4, 5, 6]
-    wins = np.logspace(np.log10(10), np.log10(mean_time), 20)
+    wls = [1, 2, 3, 4, 5]
+    wins = np.logspace(np.log10(10), np.log10(mean_time + std_time), 20)
     # wins = [50, 80]
     print("windows:", wins)
     # sc = 200
 
     doc_kwargs = {
-        "alphabet_size": np.array([4]),
-        "quantity": np.array(["mean"]),
+        "alphabet_size": np.array([4, 4]),
+        "quantity": np.array(["mean", "trend"]),
         "irr_handler": "#",
         "mean_bp_dist": "normal",
         "verbose": True,
     }
+    merged = False
     class_based = True  # options: True, False
     normalize = 'l2'  # options: None, l2
     use_idf = True  # options: True, False
@@ -238,33 +275,32 @@ if __name__ == '__main__':
     output_dict = grid_search(dataset, labels_, wins, wls, doc_kwargs,
                               class_based=class_based, classes=classes,
                               normalize=normalize, use_idf=use_idf,
-                              sublinear_tf=sublinear_tf, spatial_comp=sc)
+                              sublinear_tf=sublinear_tf, spatial_comp=sc, merged_quantities=merged)
     print("::::::::::::::: END GRID SEARCH CV ::::::::::::::: ")
     print(":::::::::::::::::::::::::::::::::::::::::::::::::: ")
     print("::::::::::::::: SAVING ::::::::::::::::::::::::::: ")
     df = pd.DataFrame(output_dict)
-    out_file = os.path.join(main_path, "data", "results", "plasticc", "iter1_augment_ddf_100.csv")
+    out_file = os.path.join(main_path, "data", "results", "plasticc", "iter1_%s_mean_trend.csv" % set_name)
     df.to_csv(out_file, index=False)
 
-    df = pd.read_csv(out_file)
-
-    df = df[df["scheme"] != "nnn"]
-    df = df.sort_values("mean_cv", ascending=False)
-    iter2_wls = df["wl"].to_numpy()
-    iter2_wins = df["win"].to_numpy()
-    iter2_accs = df["mean_cv"].to_numpy()
-    print(":::::::::::::::::::::::::::::::::::::::::::::::::: ")
-    print("::::::::::::::: START GRID SEARCH CV 2 ::::::::::::::: ")
-    output_dict2 = grid_search_multi_rest(dataset, labels_, iter2_wins, iter2_wls, iter2_accs, doc_kwargs,
-                                          class_based=class_based, classes=classes,
-                                          normalize=normalize, use_idf=use_idf,
-                                          sublinear_tf=sublinear_tf, spatial_comp=sc)
-    print("::::::::::::::: END GRID SEARCH CV 2 ::::::::::::::: ")
-    print(":::::::::::::::::::::::::::::::::::::::::::::::::: ")
-    print("::::::::::::::: SAVING ::::::::::::::::::::::::::: ")
-    df = pd.DataFrame(output_dict2)
-    out_file = os.path.join(main_path, "data", "results", "plasticc", "iter2_augment_ddf_100.csv")
-    df.to_csv(out_file, index=False)
-    print("::::::::: TOTAL RUN TIME %.3f :::::::::::::::::::: " % (time.time() - ini))
+    # df = pd.read_csv(out_file)
+    # df = df[df["scheme"] != "nnn"]
+    # df = df.sort_values("mean_cv", ascending=False)
+    # iter2_wls = df["wl"].to_numpy()
+    # iter2_wins = df["win"].to_numpy()
+    # iter2_accs = df["mean_cv"].to_numpy()
+    # print(":::::::::::::::::::::::::::::::::::::::::::::::::: ")
+    # print("::::::::::::::: START GRID SEARCH CV 2 ::::::::::::::: ")
+    # output_dict2 = grid_search_multi_rest(dataset, labels_, iter2_wins, iter2_wls, iter2_accs, doc_kwargs,
+    #                                       class_based=class_based, classes=classes,
+    #                                       normalize=normalize, use_idf=use_idf,
+    #                                       sublinear_tf=sublinear_tf, spatial_comp=sc)
+    # print("::::::::::::::: END GRID SEARCH CV 2 ::::::::::::::: ")
+    # print(":::::::::::::::::::::::::::::::::::::::::::::::::: ")
+    # print("::::::::::::::: SAVING ::::::::::::::::::::::::::: ")
+    # df = pd.DataFrame(output_dict2)
+    # out_file = os.path.join(main_path, "data", "results", "plasticc", "iter2_%s_mean_trend.csv" % set_name)
+    # df.to_csv(out_file, index=False)
+    # print("::::::::: TOTAL RUN TIME %.3f :::::::::::::::::::: " % (time.time() - ini))
 
 

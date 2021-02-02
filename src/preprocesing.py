@@ -17,10 +17,10 @@ def gen_dataset(df: pd.DataFrame, df_meta: pd.DataFrame):
     return res, labels
 
 
-def gen_dataset_from_h5(filename):
+def gen_dataset_from_h5(filename, verify_input_chunks=False):
     dataset = avocado.load(
         filename,
-        verify_input_chunks=False,
+        verify_input_chunks=verify_input_chunks,
     )
     res = []
     labels = []

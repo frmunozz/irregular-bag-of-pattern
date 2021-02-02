@@ -8,7 +8,7 @@ import numpy as np
 
 
 class MPTextGenerator(TransformerMixin, BaseEstimator):
-    def __init__(self, bands=None, n_jobs=6, direct_bow=True, **doc_gen_kwargs):
+    def __init__(self, bands=None, n_jobs=6, direct_bow=True, opt_desc="", **doc_gen_kwargs):
         if bands is None:
             raise ValueError("need to define the bands keywords")
         self.bands = bands
@@ -25,6 +25,7 @@ class MPTextGenerator(TransformerMixin, BaseEstimator):
         self.doc_kwargs = doc_gen_kwargs
         self.n_jobs = n_jobs
         self._direct_bow = direct_bow
+        self._opt_desc = opt_desc
 
     def get_bop_size(self):
         doc_gen = TextGeneration(win=self._win, wl=self._wl, direct_bow=self._direct_bow, **self.doc_kwargs)
@@ -36,7 +37,7 @@ class MPTextGenerator(TransformerMixin, BaseEstimator):
     def transform(self, X, **kwargs):
 
         r = process_map(self.transform_object, X, max_workers=self.n_jobs,
-                        desc="[win: %.3f, wl: %d]" % (self._win, self._wl), chunksize=8)
+                        desc="[win: %.3f, wl: %d%s]" % (self._win, self._wl, self._opt_desc), chunksize=8)
         if self._direct_bow:
             bop_size = self.get_bop_size()
             new_x = merge_documents(np.array(r), self.bands, bop_size)

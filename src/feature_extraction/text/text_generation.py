@@ -15,8 +15,8 @@ class TextGeneration(TransformerMixin, BaseEstimator):
                  index_based_paa=False, tol=6, mean_bp_dist="normal",
                  threshold=None, verbose=True):
 
-        if wl == 1:
-            raise ValueError("method not implemented for word length 1")
+        # if wl == 1:
+            # raise ValueError("method not implemented for word length 1")
 
         # if quantity is None:
         #     quantity = ["mean"]
@@ -153,6 +153,8 @@ class TextGeneration(TransformerMixin, BaseEstimator):
 
     def _compute_trend(self, *args):
         trend = args[0].trend_value(args[5], args[6])
+        if trend is None:
+            return
         return np.digitize(trend, self._bp["trend"])
 
     def _compute_min_max(self, *args):
@@ -168,8 +170,8 @@ class TextGeneration(TransformerMixin, BaseEstimator):
         doc = []
         dropped_count = 0
 
-        # if self._wl == 1:
-        #     self._set_global_break_points(ts)
+        if self.wl == 1:
+            self._set_global_break_points(ts)
 
         self._prev_word = -1
         for k in range(n):
@@ -224,8 +226,11 @@ class TextGeneration(TransformerMixin, BaseEstimator):
         return word, empty_segments
 
     def _generate_word(self, ts, i, j, segments):
-        self._set_local_break_points(ts, i, j, self.quantity)
-        meanx, sigmax = ts.mean_sigma_segment(i, j)
+        if self.wl > 1:
+            self._set_local_break_points(ts, i, j, self.quantity)
+            meanx, sigmax = ts.mean_sigma_segment(i, j)
+        else:
+            meanx, sigmax = ts.mean_sigma_segment(0, ts._n)
         word = []
         self._valid_chars = self.wl
         for k in range(self.wl):
@@ -241,8 +246,12 @@ class TextGeneration(TransformerMixin, BaseEstimator):
             weigth = 1
             nn = len(self.quantity)
             for q in range(nn):
-                val += weigth * getattr(
-                    self, "_compute_" + self.quantity[nn - q - 1])(*args, q)
+                inn_val = getattr(self, "_compute_" + self.quantity[nn - q - 1])(*args, q)
+                if inn_val is None:
+                    # if any of the computed quantities fail, the segment fail
+                    self._valid_chars -= 1
+                    return -1
+                val += weigth * inn_val
                 weigth *= self.alphabet_size[nn - q - 1]
 
         else:

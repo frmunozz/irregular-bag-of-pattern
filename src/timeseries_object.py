@@ -103,14 +103,28 @@ class FastIrregularUTSObject(object):
             return 0
 
     def trend_value(self, i, j):
-        slope, _, _, _, _ = linregress(self.times[i:j], self.fluxes[i:j])
+        t = self.times[i:j]
+        y = self.fluxes[i:j]
+        if len(t) < 2:
+            return None
+        if np.var(t) == 0:
+            return np.pi/2
+        if np.var(y) == 0:
+            return 0
+        slope, _, _, _, _ = linregress(t, y)
         return np.arctan(slope)
 
     def min_max_value(self, i, j):
-        return np.max(self.fluxes[i:j]) - np.min(self.fluxes[i:j])
+        y = self.fluxes[i:j]
+        if len(y) < 2:
+            return None
+        return np.max(y) - np.min(y)
 
     def std_value(self, i, j):
-        return np.std(self.fluxes[i:j])
+        y = self.fluxes[i:j]
+        if len(y) < 2:
+            return None
+        return np.std(y)
 
     def mean_break_points(self, i, j, n, dist="normal"):
         vec = self.fluxes[i:j]
