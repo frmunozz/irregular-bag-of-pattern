@@ -119,6 +119,20 @@ class CVClassify:
                 d += dtw.distance_fast(vi[b].fluxes, vj[b].fluxes)
         return d
 
+    def _dist2(self, vi, vj):
+        n = 0
+        s = 0
+        i = 0
+        for b in bands:
+            if vi[b] is not None and vj[b] is not None:
+                d_i = dtw.distance_fast(vi[b].fluxes, vj[b].fluxes) + 1
+                s += 1/d_i
+                n += 1
+        if n == 0:
+            return np.inf
+        else:
+            return 1 / (n * s)
+
     def _classify(self, i):
         vi = self.d_train[i]
         distances = []
@@ -128,15 +142,16 @@ class CVClassify:
             distances.append(d)
 
         d_sort = np.argsort(distances)
+        # print(distances[d_sort[0]])
         assert np.argmin(distances) == d_sort[0]
-        assert distances[d_sort[0]] == 0
+        # assert distances[d_sort[0]] == 1
 
         pred = self.l_train[d_sort[1]]
 
         return pred
 
     def classify(self):
-        pred = process_map(self._classify, self._iter, max_workers=self.n_jobs, desc="classifying")
+        pred = process_map(self._classify, self._iter, max_workers=self.n_jobs, desc="classifying", chunksize=50)
         print("balanced acc:", balanced_accuracy_score(self.l_train, pred))
         return pred
 
@@ -180,6 +195,7 @@ plot_labels_extra_short = {
 
 if __name__ == '__main__':
     train_name = "plasticc_augment_ddf_100"
+    train_name = "plasticc_train"
     test_name = "plasticc_test_ddf_100"
 
     # print("load data")
@@ -197,7 +213,7 @@ if __name__ == '__main__':
     # plt.savefig(os.path.join(main_path, "data", "plasticc", "conf_matrix_dtw_raw_augment_cv_100.png",), dpi=300)
 
     print("load data")
-    cv_classify = CVClassify(train_name)
+    cv_classify = CVClassify(train_name, n_jobs=8)
     print("predict and clasify")
     pred = cv_classify.classify()
     real = cv_classify.l_train
@@ -207,8 +223,15 @@ if __name__ == '__main__':
     cnf_matrix2 = confusion_matrix(real, pred, labels=reorder)
     fig = plt.figure(figsize=(10, 8))
     plot_confusion_matrix(cnf_matrix2, classes=classes_names, normalize=False,
-                          title='Conf. matrix DTW-raw augment harmonic [b_acc:%.3f]' % balanced_accuracy_score(real, pred))
-    plt.savefig(os.path.join(main_path, "data", "plasticc", "conf_matrix_dtw_raw_augment_cv_100.png",), dpi=300)
+                          title='Conf. matrix DTW-raw train full naive [b_acc:%.3f]' % balanced_accuracy_score(real, pred))
+    plt.savefig(os.path.join(main_path, "data", "results", "plasticc", "conf_matrix_dtw_raw_cv_full_naive.png",), dpi=300)
+
+    fig = plt.figure(figsize=(10, 8))
+    plot_confusion_matrix(cnf_matrix2, classes=classes_names, normalize=True,
+                          title='Conf. matrix DTW-raw atrain full naive percent [b_acc:%.3f]' % balanced_accuracy_score(real,
+                                                                                                               pred))
+    plt.savefig(os.path.join(main_path, "data", "results", "plasticc", "conf_matrix_dtw_raw_cv_full_naive_percent.png", ),
+                dpi=300)
 
     # with train: 0.347 acc
     # with augment: 0.466 acc

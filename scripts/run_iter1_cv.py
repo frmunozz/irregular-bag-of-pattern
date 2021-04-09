@@ -28,6 +28,7 @@ from src.feature_extraction.window_slider import TwoWaysSlider
 from sklearn.feature_selection import VarianceThreshold
 
 _BANDS = ["lsstg", "lssti", "lsstr", "lsstu", "lssty", "lsstz"]
+_N_JOBS = 8
 
 
 def cv_score(d_train, l_train, win, wl, doc_kwargs,
@@ -41,7 +42,7 @@ def cv_score(d_train, l_train, win, wl, doc_kwargs,
         for q, a_size in zip(quantities, alph_sizes):
             doc_kwargs["quantity"] = np.array([q])
             doc_kwargs["alphabet_size"] = np.array([a_size])
-            text_gen = MPTextGenerator(bands=_BANDS, n_jobs=6, win=win, wl=wl, direct_bow=True, tol=wl * 2,
+            text_gen = MPTextGenerator(bands=_BANDS, n_jobs=_N_JOBS, win=win, wl=wl, direct_bow=True, tol=wl * 2,
                                        opt_desc=", %s" % q, **doc_kwargs)
             x_i = text_gen.fit_transform(d_train)
             x_arr.append(x_i)
@@ -50,7 +51,7 @@ def cv_score(d_train, l_train, win, wl, doc_kwargs,
         doc_kwargs["alphabet_size"] = alph_sizes
 
     else:
-        text_gen = MPTextGenerator(bands=_BANDS, n_jobs=6, win=win, wl=wl, direct_bow=True, tol=wl * 2, **doc_kwargs)
+        text_gen = MPTextGenerator(bands=_BANDS, n_jobs=_N_JOBS, win=win, wl=wl, direct_bow=True, tol=wl * 2, **doc_kwargs)
         x = text_gen.fit_transform(d_train)
 
     if max_dropped == "default":
@@ -73,7 +74,7 @@ def cv_score(d_train, l_train, win, wl, doc_kwargs,
     centroid = CentroidClass(classes=classes)
     knn = KNeighborsClassifier(n_neighbors=1, classes=classes, useClasses=class_based)
     pipeline = Pipeline([("vsm", vsm), ("lsa", lsa), ("centroid", centroid), ("knn", knn)])
-    scores = cross_val_score(pipeline, x, l_train, scoring="balanced_accuracy", cv=5, n_jobs=6, verbose=0)
+    scores = cross_val_score(pipeline, x, l_train, scoring="balanced_accuracy", cv=5, n_jobs=_N_JOBS, verbose=0)
     end = time.time()
     print("[win: %.3f, wl: %d]:" % (win, wl), np.mean(scores), "+-", np.std(scores), " (time: %.3f sec)" % (end-ini))
     return scores, pipeline, None, dropped
@@ -95,7 +96,7 @@ def cv_score_multi_res(x, l_train, text="X",
     centroid = CentroidClass(classes=classes)
     knn = KNeighborsClassifier(n_neighbors=1, classes=classes, useClasses=class_based)
     pipeline = Pipeline([("vsm", vsm), ("lsa", lsa), ("centroid", centroid), ("knn", knn)])
-    scores = cross_val_score(pipeline, x, l_train, scoring="balanced_accuracy", cv=5, n_jobs=6, verbose=0)
+    scores = cross_val_score(pipeline, x, l_train, scoring="balanced_accuracy", cv=5, n_jobs=_N_JOBS, verbose=0)
     end = time.time()
     print("[%s]:" % text, np.mean(scores), "+-", np.std(scores), " (time: %.3f sec)" % (end-ini))
     return scores, pipeline, dropped
@@ -142,7 +143,7 @@ def grid_search_multi_rest(d_train, l_train, wins, wls, accs, doc_kwargs, class_
     tops = 5
     x_arr = []
     for win, wl in zip(wins, wls):
-        text_gen_i = MPTextGenerator(bands=_BANDS, n_jobs=6, win=win, wl=wl, direct_bow=True, tol=wl * 2, **doc_kwargs)
+        text_gen_i = MPTextGenerator(bands=_BANDS, n_jobs=_N_JOBS, win=win, wl=wl, direct_bow=True, tol=wl * 2, **doc_kwargs)
         x_i = text_gen_i.fit_transform(d_train)
         shape_before = x_i.shape
         sel = VarianceThreshold(threshold=0)
@@ -252,20 +253,20 @@ if __name__ == '__main__':
     mean_time = np.mean(time_durations)
     std_time = np.std(time_durations)
 
-    wls = [1, 2, 3, 4, 5]
+    wls = [1, 2, 3, 4]
     wins = np.logspace(np.log10(10), np.log10(mean_time + std_time), 20)
     # wins = [50, 80]
     print("windows:", wins)
     # sc = 200
 
     doc_kwargs = {
-        "alphabet_size": np.array([4, 4]),
-        "quantity": np.array(["mean", "trend"]),
+        "alphabet_size": np.array([4, 4, 4]),
+        "quantity": np.array(["mean", "trend", "std"]),
         "irr_handler": "#",
         "mean_bp_dist": "normal",
         "verbose": True,
     }
-    merged = False
+    merged = True
     class_based = True  # options: True, False
     normalize = 'l2'  # options: None, l2
     use_idf = True  # options: True, False
@@ -280,7 +281,7 @@ if __name__ == '__main__':
     print(":::::::::::::::::::::::::::::::::::::::::::::::::: ")
     print("::::::::::::::: SAVING ::::::::::::::::::::::::::: ")
     df = pd.DataFrame(output_dict)
-    out_file = os.path.join(main_path, "data", "results", "plasticc", "iter1_%s_mean_trend.csv" % set_name)
+    out_file = os.path.join(main_path, "data", "results", "plasticc", "iter1_%s_mean-trend-std-4.csv" % set_name)
     df.to_csv(out_file, index=False)
 
     # df = pd.read_csv(out_file)
@@ -301,6 +302,6 @@ if __name__ == '__main__':
     # df = pd.DataFrame(output_dict2)
     # out_file = os.path.join(main_path, "data", "results", "plasticc", "iter2_%s_mean_trend.csv" % set_name)
     # df.to_csv(out_file, index=False)
-    # print("::::::::: TOTAL RUN TIME %.3f :::::::::::::::::::: " % (time.time() - ini))
+    print("::::::::: TOTAL RUN TIME %.3f :::::::::::::::::::: " % (time.time() - ini))
 
 
