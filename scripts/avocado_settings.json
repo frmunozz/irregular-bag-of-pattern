@@ -7,12 +7,13 @@
 
     "augment_retries": 10,
 
-    "features_directory": "./features",
+    "features_directory": "../data/plasticc/features",
     "features_tag": "features_v1",
 
     "classifier_directory": "./classifiers",
 
     "predictions_directory": "./predictions",
+    "knn_directory": "./knn",
 
     "redshift_weighting_group_key": "ddf",
     "redshift_weighting_min_redshift": 0.1,
