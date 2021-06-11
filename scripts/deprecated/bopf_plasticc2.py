@@ -1,8 +1,8 @@
 import sys
 import os
-main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.insert(0, main_path)
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../scripts')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import multiprocessing as mp
 from collections import defaultdict

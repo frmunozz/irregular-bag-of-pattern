@@ -5,7 +5,7 @@ from tqdm import tqdm
 from dtaidistance import dtw
 import os
 import sys
-main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, main_path)
 from src.timeseries_object import TimeSeriesObject
 from tqdm.contrib.concurrent import process_map

@@ -137,6 +137,8 @@ data/
 
 # papers
 papers/
+drafts/
+externals/
 
 
 avocado_settings.json
