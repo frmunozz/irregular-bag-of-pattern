@@ -32,7 +32,6 @@ symbols = {
 }
 
 _BANDS = ["lsstg", "lssti", "lsstr", "lsstu", "lssty", "lsstz"]
-_N_JOBS = 8
 
 
 def quantities_code(quantities):
@@ -47,7 +46,7 @@ def quantities_code(quantities):
 class MMMBOPFPipeline(object):
     def __init__(self, alpha=4, Q=None, R=None, C=None,
                  lsa_kw=None, doc_kw=None, N=100,
-                 max_dropped="default"):
+                 max_dropped="default", n_jobs=8):
 
         if C not in ["LSA", "lsa", "manova", "MANOVA"]:
             raise ValueError("invalid value for C={}".format(C))
@@ -61,13 +60,14 @@ class MMMBOPFPipeline(object):
         self.K = 0
         self.max_dropped = max_dropped
         self.C = C
+        self.n_jobs = n_jobs
 
     @property
     def n(self):
         return self.N
 
     def multi_variate_representation(self, data, win, wl, q):
-        text_gen = MPTextGeneratorMultivariateCountWords(bands=_BANDS, n_jobs=_N_JOBS, win=win,
+        text_gen = MPTextGeneratorMultivariateCountWords(bands=_BANDS, n_jobs=self.n_jobs, win=win,
                                                          wl=wl, direct_bow=True, tol=wl * 2,
                                                          opt_desc=", " + "-".join(q), **self.doc_kw)
         return text_gen.fit_transform(data)

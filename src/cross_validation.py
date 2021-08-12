@@ -18,10 +18,9 @@ Multi-Resolution Multi-quantity  Multi-variate BOPF (MMM-BOPF)
 """
 
 _BANDS = ["lsstg", "lssti", "lsstr", "lsstu", "lssty", "lsstz"]
-_N_JOBS = 8
 
 
-def cv_score(x, labels, classes, _pipeline, message="", cv=5):
+def cv_score(x, labels, classes, _pipeline, message="", cv=5, n_jobs=8):
     ini = time.time()
     dropped, max_dropped = _pipeline.check_dropped(x, labels)
     if dropped > max_dropped:
@@ -41,7 +40,7 @@ def cv_score(x, labels, classes, _pipeline, message="", cv=5):
     print("[%s]: DOING CROSS VALIDATION..." % message, end="\r")
     ini = time.time()
     scores = cross_val_score(sklearn_pipeline, x, labels,
-                             scoring="balanced_accuracy", cv=cv, n_jobs=_N_JOBS, verbose=0)
+                             scoring="balanced_accuracy", cv=cv, n_jobs=n_jobs, verbose=0)
     end = time.time()
     print("[%s]: %.3f += %.3f (time: %.3f sec)" % (message, float(np.mean(scores)),
                                                    float(np.std(scores)), end - ini))
