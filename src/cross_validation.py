@@ -48,7 +48,7 @@ def cv_score(x, labels, classes, _pipeline, message="", cv=5, n_jobs=8):
     return scores, sklearn_pipeline, dropped, [-1, -1]
 
 
-def cv_smm_bopf(data, labels, wins, wls, _pipeline, cv=5):
+def cv_smm_bopf(data, labels, wins, wls, _pipeline, cv=5, n_jobs=8):
     """
     compute cross validation score for
 
@@ -67,7 +67,7 @@ def cv_smm_bopf(data, labels, wins, wls, _pipeline, cv=5):
             try:
                 data_repr_i = _pipeline.multi_quantity_representation(data, win, wl)
                 data_mr_repr[win][wl] = data_repr_i
-                cv_results_i = cv_score(data_repr_i, labels, classes, _pipeline, message=message, cv=cv)
+                cv_results_i = cv_score(data_repr_i, labels, classes, _pipeline, message=message, cv=cv, n_jobs=n_jobs)
                 cv_results[win][wl] = cv_results_i
                 result_lists["win"].append(win)
                 result_lists["wl"].append(wl)
@@ -83,13 +83,13 @@ def cv_smm_bopf(data, labels, wins, wls, _pipeline, cv=5):
 
 
 def cv_mmm_bopf(data, labels, wins, wls, _pipeline, cv=5, resolution_max=4, top_k=4,
-                out_path=None, cv_smm_bopf_results=None):
+                out_path=None, cv_smm_bopf_results=None, n_jobs=8):
     classes = np.unique(labels)
     q_code = _pipeline.quantities_code()
     base_file_name = "multi_ress-%s-stack_" % q_code
 
     if cv_smm_bopf_results is None:
-        cv_smm_bopf_results = cv_smm_bopf(data, labels, wins, wls, _pipeline, cv=cv)
+        cv_smm_bopf_results = cv_smm_bopf(data, labels, wins, wls, _pipeline, cv=cv, n_jobs=n_jobs)
 
     data_mr_repr, cv_results, result_list = cv_smm_bopf_results
     win_list = result_list["win"]
@@ -148,7 +148,7 @@ def cv_mmm_bopf(data, labels, wins, wls, _pipeline, cv=5, resolution_max=4, top_
 
                             # get a cr score from this current stack of configs
                             score, pipeline, dropped, shapes = cv_score(x_i, labels, classes, _pipeline,
-                                                                                   message=message, cv=cv)
+                                                                                   message=message, cv=cv, n_jobs=n_jobs)
                             # line to write to file
                             line = "%s,%d,%f,%d,%d,%d," % (
                             message, wl_list[next_idx], win_list[next_idx], dropped, shapes[0], shapes[1])

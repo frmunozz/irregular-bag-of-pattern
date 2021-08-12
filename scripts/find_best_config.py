@@ -83,12 +83,13 @@ if __name__ == '__main__':
     out_path = os.path.join("..", "data", "configs_results", "%s_multi_ress_search" % C.lower())
     if not os.path.exists(out_path):
         raise ValueError("folder doesnt exists")
+    n_jobs = 8
 
     # get pipeline
     pipeline = MMMBOPFPipeline(alpha=alpha, Q=Q, C=C, lsa_kw=lsa_kwargs,
-                               doc_kw=doc_kwargs, N=N)
+                               doc_kw=doc_kwargs, N=N, n_jobs=n_jobs)
 
     cv_mmm_bopf(dataset, labels_, wins, wls, pipeline, cv=split_folds, resolution_max=resolution_max,
-                top_k=top_k, out_path=out_path)
+                top_k=top_k, out_path=out_path, n_jobs=n_jobs)
 
 
