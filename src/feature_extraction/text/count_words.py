@@ -28,6 +28,19 @@ def merge_documents(corpus, bands, vocabulary_size):
     return new_corpus
 
 
+def multivariate_count_words_flattened(corpus, bands, vocabulary_size):
+    n = len(corpus)
+    len_b = len(bands)
+    m_bow = sparse.lil_matrix((n, vocabulary_size * len_b), dtype=int)
+    for i in range(n):
+        if corpus[i] is not None:
+            for k, b in enumerate(bands):
+                doc = corpus[i][b]
+                for word in doc:
+                    m_bow[i, word * len_b + k] += 1
+    return sparse.csr_matrix(m_bow)
+
+
 class Vectorizer(TransformerMixin, BaseEstimator):
 
     def __init__(self, **kwargs):
@@ -41,6 +54,19 @@ class Vectorizer(TransformerMixin, BaseEstimator):
     def transform(self, X, **kwargs):
         new_x = merge_documents(X, self.bands, self.bop_size)
         return count_words(new_x, self.bop_size * len(self.bands))
+
+
+class MultivariateVectorizer(TransformerMixin, BaseEstimator):
+    def __init__(self, **kwargs):
+        self.bop_size = get_vocabulary_size(kwargs.get("alph_size"), kwargs.get("word_length"),
+                                            kwargs.get("irr_handler"))
+        self.bands = kwargs.get("bands")
+
+    def fit(self, X, y=None, **kwargs):
+        return self
+
+    def transform(self, X, **kwargs):
+        return multivariate_count_words_flattened(X, self.bands, self.bop_size)
 
 
 class MRVectorizer(TransformerMixin, BaseEstimator):

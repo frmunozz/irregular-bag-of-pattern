@@ -1,6 +1,6 @@
 {
     "user_settings_file": "avocado_settings.json",
-    "data_directory": "../data/plasticc/data",
+    "data_directory": "../data",
 
     "num_folds": 5,
     "fold_random_state": 1,

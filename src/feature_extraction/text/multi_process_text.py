@@ -3,7 +3,7 @@ from sklearn.base import TransformerMixin, BaseEstimator
 
 from .text_generation import TextGeneration
 from ..window_slider import TwoWaysSlider
-from .count_words import merge_documents, count_words
+from .count_words import merge_documents, count_words, multivariate_count_words_flattened
 import numpy as np
 
 
@@ -50,3 +50,15 @@ class MPTextGenerator(TransformerMixin, BaseEstimator):
         slider = TwoWaysSlider(self._win, tol=self._tol)
         doc_mb, dropped_mb = doc_gen.transform_object(x, slider)
         return doc_mb
+
+
+class MPTextGeneratorMultivariateCountWords(MPTextGenerator):
+    def transform(self, X, **kwargs):
+
+        r = process_map(self.transform_object, X, max_workers=self.n_jobs,
+                        desc="[win: %.3f, wl: %d%s]" % (self._win, self._wl, self._opt_desc), chunksize=8)
+        if self._direct_bow:
+            bop_size = self.get_bop_size()
+            return multivariate_count_words_flattened(r, self.bands, bop_size)
+        else:
+            return r
