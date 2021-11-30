@@ -1,5 +1,5 @@
 import pandas as pd
-from avocado import AstronomicalObject
+from .avocado_adapter import AstronomicalObject
 import numpy as np
 from scipy.stats import linregress, norm
 from scipy.interpolate import interp1d
@@ -65,6 +65,47 @@ class TimeSeriesObject:
             else:
                 objs[b] = None
         return objs
+
+    def to_simple_object_for_numba(self, bands):
+        if not self.sorted:
+            self.observations = self.observations.sort_values("time")
+            self.sorted = True
+        df = self.observations.sort_values(["time"])
+        g = df.groupby("band")
+        fluxes = g["flux"].apply(np.hstack)
+        times = g["time"].apply(np.hstack)
+        v = {}
+        t = {}
+        for b in bands:
+            if b in fluxes:
+                v[b] = fluxes.loc[b]
+                t[b] = times.loc[b]
+            else:
+                v[b] = np.array([])
+                t[b] = np.array([])
+        return v, t
+
+    def fast_format_for_numba_code(self, bands_lbls):
+        if not self.sorted:
+            self.observations = self.observations.sort_values("time")
+            self.sorted = True
+        df = self.observations.sort_values(["band", "time"])
+        bands = df["band"].to_numpy().astype(str)
+        # print(len(bands))
+        # print(bands)
+        bands_ini = np.ones(len(bands_lbls)) * -1
+        bands_end = np.ones(len(bands_lbls)) * -1
+        for j, b in enumerate(bands_lbls):
+            idxs = np.where(bands == b)[0]
+            # print(idxs)
+            if len(idxs) > 0:
+                bands_ini[j] = int(np.min(idxs))
+                bands_end[j] = int(np.max(idxs))
+
+        # print(bands_ini, bands_end)
+        fluxes = df["flux"].to_numpy().astype(float)
+        times = df["time"].to_numpy().astype(float)
+        return fluxes, times, bands_ini, bands_end
 
 
 class FastIrregularUTSObject(object):

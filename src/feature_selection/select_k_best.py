@@ -1,10 +1,6 @@
 from sklearn.feature_selection import SelectKBest as skl_SelectKBest
 from sklearn.feature_selection import f_classif
 import numpy as np
-from ..utils import get_vocabulary_size
-from sklearn.utils.validation import check_array
-from sklearn.utils import safe_mask
-from warnings import warn
 
 
 class SelectKTop(skl_SelectKBest):
@@ -33,6 +29,7 @@ class GeneralSelectKTop(skl_SelectKBest):
     def fit(self, X, y):
         X, y = self._validate_data(X, y, accept_sparse=['csr', 'csc'], allow_nd=self.allow_nd,
                                    multi_output=True)
+        # print("FITTING X SHAPE: ", X.shape)
         # if X.ndim != 3:
         #     raise ValueError("Data array dimensions invalid: %d != 3" % X.dim)
 
@@ -67,6 +64,7 @@ class GeneralSelectKTop(skl_SelectKBest):
         for i, value in enumerate(mask):
             for j in range(self.n_variables):
                 mask_extended[i * self.n_variables + j] = value
+        # print("MASK LENGTH: ", len(mask_extended))
         return mask_extended
 
     # def transform(self, X):
@@ -96,6 +94,7 @@ class GeneralSelectKTop(skl_SelectKBest):
     #     return X[:, safe_mask(X, mask)]
 
     def transform(self, X):
+        # print("TRANSFORM X SHAPE: ", X.shape)
         ret = super(GeneralSelectKTop, self).transform(X)
         if not isinstance(ret, np.ndarray):
             ret = ret.toarray()

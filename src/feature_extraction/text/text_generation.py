@@ -163,6 +163,8 @@ class TextGeneration(TransformerMixin, BaseEstimator):
 
     def _compute_std(self, *args):
         std = args[0].std_value(args[5], args[6])
+        if std is None:
+            return None
         return np.digitize(std, self._bp["std"])
 
     def _transform(self, ts: FastIrregularUTSObject, slider: TwoWaysSlider):
@@ -179,7 +181,8 @@ class TextGeneration(TransformerMixin, BaseEstimator):
             # if self._verbose:
             #     print("::> slider sub-sequence:", i, j, ini, end)
             if self._cond_to_word(i, j):
-                word, empty_segments = self._sequence_to_word(ts, i, j, ini)
+                word, empty_segments, segments = self._sequence_to_word(ts, i, j, ini)
+                # print(i, j, word, empty_segments, segments)
                 if len(word) > 0:
                     wordp = self._process_word(word, empty_segments)
                     if self._num_reduction_cond(wordp[0]):
@@ -204,13 +207,13 @@ class TextGeneration(TransformerMixin, BaseEstimator):
 
     def _sequence_to_word(self, ts: FastIrregularUTSObject, i, j, ini_seq):
         segments, empty_segments = self._segmentator.segmentate(ts, i, j, ini_seq)
-        # print("segments:", segments)
+        # print(i, j, ini_seq, "segments:", list(segments))
         # if self._verbose:
         #     print("    empty_segments:", empty_segments)
         l_e = len(empty_segments)
         if self.wl - self._threshold() < l_e:
             # print("dropped")
-            return [], []
+            return [], empty_segments, segments
         if self._interp_condition(empty_segments):
             # print("interpolating")
             new_ts = self._interpolate_new_timeseries(ts, i, j, ini_seq, empty_segments)
@@ -218,12 +221,12 @@ class TextGeneration(TransformerMixin, BaseEstimator):
             # print("new segments:", segments)
             if len(empty_segments) > 3:
                 # print("dropped")
-                return [], []
+                return [], [], []
             word = self._generate_word(new_ts, 0, j-i, segments)
         else:
             word = self._generate_word(ts, i, j, segments)
 
-        return word, empty_segments
+        return word, empty_segments, segments
 
     def _generate_word(self, ts, i, j, segments):
         if self.wl > 1:
@@ -237,7 +240,6 @@ class TextGeneration(TransformerMixin, BaseEstimator):
             ini, end = segments[k]
             val = self._segment_to_char(ts, meanx, sigmax, i, j, ini, end)
             word.append(self._word_offset(k) * val)
-        # print(word)
         return word
 
     def _segment_to_char(self, *args):
@@ -327,11 +329,13 @@ class TextGeneration(TransformerMixin, BaseEstimator):
         dropped_mb = 0
         all_none = True
         for k, v in ts_obj.items():
+            # print("BAND ", k)
             if v is not None:
                 # if self.verbose:
                 #     print("BAND:", k)
                 slider.fit(v.times)
                 doc, dropped = self._transform(v, slider)
+                # print(dropped)
                 doc_mb[k] = doc
                 dropped_mb += dropped
                 if len(doc) > 0:

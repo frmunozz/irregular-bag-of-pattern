@@ -6,6 +6,19 @@ from tqdm import tqdm
 from sklearn.model_selection import StratifiedKFold
 from avocado.utils import AvocadoException
 from avocado.settings import settings
+import os
+
+
+def get_avocado_settings(name):
+    return settings[name]
+
+
+def get_mmbopf_plasticc_path():
+    directory = os.path.join(get_avocado_settings("method_directory"))
+    if not os.path.exists(directory):
+        os.mkdir(directory)
+
+    return directory
 
 
 def gen_dataset(df: pd.DataFrame, df_meta: pd.DataFrame):
@@ -21,7 +34,7 @@ def gen_dataset(df: pd.DataFrame, df_meta: pd.DataFrame):
     return res, labels
 
 
-def gen_dataset_from_h5(filename, verify_input_chunks=False, num_folds=5):
+def gen_dataset_from_h5(filename, bands, verify_input_chunks=False, num_folds=5):
     dataset = avocado.load(
         filename,
         verify_input_chunks=verify_input_chunks,
@@ -34,7 +47,7 @@ def gen_dataset_from_h5(filename, verify_input_chunks=False, num_folds=5):
             dataset.objects, desc="Object", dynamic_ncols=True
     ):
         labels.append(reference_object.metadata["class"])
-        res.append(TimeSeriesObject.from_astronomical_object(reference_object))
+        res.append(TimeSeriesObject.from_astronomical_object(reference_object).fast_format_for_numba_code(bands))
         fold_id.append(all_folds[reference_object.metadata["object_id"]])
     return np.array(res), np.array(labels), dataset.metadata, np.array(fold_id, dtype=int)
 

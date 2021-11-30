@@ -118,36 +118,66 @@ class TwoWaysSlider(object):
         starts = values[:-1]
         self._forward_sequences = []
         j = 0
+        i = 0
         n = values.size
-        for i, ini in enumerate(starts):
+        while i < n - 1 and values[i] + self._window <= values[n-1]:
+            ini = values[i]
             while j < n and values[j] <= ini + self._window:
                 j += 1
             if j - i > self._tol:
                 self._forward_sequences.append([i, j, ini])
+            i += 1
 
     def _backward_slide(self, values: np.ndarray):
-        ends = values[1:]
         self._backward_sequences = []
         n = values.size
-        i = n-1
-        for j, end in enumerate(ends):
-            while i > 0 and values[i] > end - self._window:
-                i -= 1
-            i += 1  # correct bound to include index i in window
+        i = n - 1
+        j = n - 1
+        while j > 1 and values[j] - self._window >= values[0]:
+            end = values[j]
+            while i > 0 and values[i] >= end - self._window:
+                if values[i - 1] >= end - self._window:
+                    i -= 1
+                else:
+                    break
             if j - i > self._tol:
                 self._backward_sequences.append([i, j, end])
+            j -= 1
 
     def fit(self, values: np.ndarray):
+        # print(list(values))
         self._forward_slide(values)
         self._backward_slide(values)
         self._n0 = len(self._forward_sequences)
 
+        i_arr = []
+        j_arr = []
+        ini_arr = []
+
+        for p in self._forward_sequences:
+            i, j, ini = p
+            i_arr.append(i)
+            j_arr.append(j)
+            ini_arr.append(ini)
+
+        for p in self._backward_sequences:
+            i, j, end = p
+            ini = end - self._window
+            i_arr.append(i)
+            j_arr.append(j)
+            ini_arr.append(ini)
+
+        # print(i_arr)
+        # print(j_arr)
+        # print(ini_arr)
+        # print("N segments: ", len(i_arr))
+
     def n(self):
-        return self._n0
+        return self._n0 + len(self._backward_sequences)
 
     def get_subsequence(self, k):
         if k >= self._n0:
-            i, j, end = self._backward_sequences[k]
+            i, j, end = self._backward_sequences[k - self._n0]
             ini = end - self._window
         else:
             i, j, ini = self._forward_sequences[k]
@@ -196,10 +226,12 @@ class Segmentator:
         return segments, np.array([])
 
     def segmentate(self, ts: FastIrregularUTSObject, i, j, ini_time):
+        # print("sub window:", self.sub_win)
         if self.k == 1:
             return np.array([[i, j]]), np.array([])
 
         if self.index_based:
             return self._index_based_segmentate(ts.times[i:j], i, ini_time)
         else:
-            return self._value_based_segmentate(ts.times[i:j], i, ini_time)
+            s, e_s = self._value_based_segmentate(ts.times[i:j], i, ini_time)
+            return s, e_s

@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from src.bruteforce import dmatrix_multiprocessing
+from src.Adeprecated.bruteforce import dmatrix_multiprocessing
 import time
 import argparse as ap
 

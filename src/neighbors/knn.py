@@ -13,7 +13,7 @@ class KNeighborsClassifier(skl_knn):
 
     def fit(self, X, y):
         if self.useClasses:
-            return super(KNeighborsClassifier, self).fit(X, self.classes)
+            return super(KNeighborsClassifier, self).fit(X, self.classes.ravel())
         else:
             return super(KNeighborsClassifier, self).fit(X, y)
 

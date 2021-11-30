@@ -36,8 +36,9 @@ def multivariate_count_words_flattened(corpus, bands, vocabulary_size):
         if corpus[i] is not None:
             for k, b in enumerate(bands):
                 doc = corpus[i][b]
-                for word in doc:
-                    m_bow[i, word * len_b + k] += 1
+                if doc is not None:
+                    for word in doc:
+                        m_bow[i, word * len_b + k] += 1
     return sparse.csr_matrix(m_bow)
 
 

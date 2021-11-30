@@ -7,12 +7,9 @@ import pandas as pd
 main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.insert(0, main_path)
 
-from src.preprocesing import single_band_dataset, gen_dataset, gen_dataset_from_h5
-from src.Adeprecated.methodA import transform_to_bop, reduce_cv_bop
-from sklearn.model_selection import train_test_split
+from src.preprocesing import gen_dataset_from_h5
+from src.Adeprecated.methodA import transform_to_bop
 from scipy import sparse
-import avocado
-
 
 if __name__ == "__main__":
     # df = pd.read_csv(os.path.join(main_path, "data", "training_set.csv.zip"))

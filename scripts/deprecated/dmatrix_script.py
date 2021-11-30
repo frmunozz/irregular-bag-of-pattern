@@ -3,7 +3,7 @@ import os
 main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.insert(0, main_path)
 
-from src.bruteforce import dmatrix_multiprocessing_v2
+from src.Adeprecated.bruteforce import dmatrix_multiprocessing_v2
 import time
 import matplotlib.pyplot as plt
 from sklearn.metrics import balanced_accuracy_score, accuracy_score, classification_report, confusion_matrix
