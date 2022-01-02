@@ -14,6 +14,8 @@
 
     "classifier_directory": "../data/plasticc/AVOCADO/classifiers",
 
+    "compact_methods_directory": "../data/plasticc/MMMBOPF/compact_methods",
+
     "predictions_directory": "../data/plasticc/AVOCADO/predictions",
     "predictions_avocado_directory": "../data/plasticc/AVOCADO/predictions",
     "predictions_mmmbopf_directory": "../data/plasticc/MMMBOPF/predictions",

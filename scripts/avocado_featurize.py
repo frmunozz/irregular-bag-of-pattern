@@ -6,15 +6,16 @@ main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, main_path)
 import argparse
 from tqdm import tqdm
-
+import time
 import avocado
+from src.avocado_adapter import Dataset, AVOCADOFeaturizer
 
 
 def process_chunk(featurizer, chunk, args, verbose=True):
     # Load the reference dataset
     if verbose:
         print("Loading dataset...")
-    dataset = avocado.load(
+    dataset = Dataset.load(
         args.dataset,
         chunk=chunk,
         num_chunks=args.num_chunks,
@@ -68,13 +69,15 @@ if __name__ == "__main__":
         '--save_models',
         action='store_true',
     )
+    parser.add_argument("--record_times", type=str, default=None)
 
     args = parser.parse_args()
+    main_ini = time.time()
 
     # Load the featurizer. For now, we only have the PLAsTiCC featurizer
     # although this could be an option in the future.
     print("Loading featurizer...")
-    featurizer = avocado.plasticc.PlasticcFeaturizer()
+    featurizer = AVOCADOFeaturizer(record_times=args.record_times is not None)
 
     if args.chunk is not None:
         # Process a single chunk
@@ -84,6 +87,24 @@ if __name__ == "__main__":
         print("Processing the dataset in %d chunks..." % args.num_chunks)
         for chunk in tqdm(range(args.num_chunks), desc='Chunk',
                           dynamic_ncols=True):
-            process_chunk(featurizer, chunk, args, verbose=False)
+            process_chunk(featurizer, chunk, args, verbose=True)
 
     print("Done!")
+    main_end = time.time()
+    try:
+        out_path = avocado.settings["avocado_directory"]
+        f = open(os.path.join(out_path, "log.txt"), "a+")
+        f.write("++++++++++++++++++++++++++++++++\n")
+        f.write("script_name: avocado_featurize.py\n")
+        f.write("dataset: %s\n" % args.dataset)
+        f.write("chunk: %s\n" % str(args.chunk))
+        f.write("num_chunks: %s\n" % args.num_chunks)
+        f.write("execution time: %.3f\n" % (main_end - main_ini))
+        f.write("++++++++++++++++++++++++++++++++\n")
+        f.close()
+    except Exception as e:
+        print("failed to write log file, error: ", e)
+        try:
+            f.close()
+        except:
+            pass

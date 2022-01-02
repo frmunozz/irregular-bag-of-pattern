@@ -15,7 +15,7 @@ import os
 import sys
 main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, main_path)
-from src.avocado_adapter import MMMBOPFFeaturizer, KNNClassifier, Dataset, LightGBMClassifier
+from src.avocado_adapter import MMMBOPFFeaturizer, Dataset, LightGBMClassifier
 
 
 if __name__ == "__main__":
@@ -52,13 +52,7 @@ if __name__ == "__main__":
         type=str,
         help="Use a custom features tag for features h5 file"
     )
-    parser.add_argument(
-        "-m",
-        '--use_metadata',
-        default=None,
-        type=str,
-        help="Use the optional metadata on the classifier"
-    )
+    parser.add_argument('--use_metadata', action='store_true')
 
     args = parser.parse_args()
 
@@ -123,11 +117,13 @@ if __name__ == "__main__":
     # Train the classifier
     print("Training classifier '%s'..." % args.classifier)
     classifier = LightGBMClassifier(
-        args.classifier,
+        "%s_%s" % (args.classifier, args.tag),
         MMMBOPFFeaturizer(include_metadata=args.use_metadata is not None),
         class_weights=class_weights,
         weighting_function=weighting_function,
+        settings_dir="predictions_mmmbopf_directory",
     )
+    print("out path:", classifier.path, classifier)
     classifier.train(dataset)
 
     # Save the classifier

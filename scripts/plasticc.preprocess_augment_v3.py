@@ -25,9 +25,19 @@ def reduce_objects_by_threshold(args):
     detections = {}
     classes_by_obj = {}
     for obj in train_set.objects:
-        c = np.sum(obj.observations["detected"].to_numpy())
-        detections[obj.metadata["object_id"]] = c
-        classes_by_obj[obj.metadata["object_id"]] = obj.metadata["class"]
+        if args.select_survey == "ddf":
+            condition = obj.metadata["ddf"] == 1
+
+        elif args.select_survey == "wdf":
+            condition = obj.metadata["ddf"] == 0
+
+        else:
+            condition = True
+
+        if condition:
+            c = np.sum(obj.observations["detected"].to_numpy())
+            detections[obj.metadata["object_id"]] = c
+            classes_by_obj[obj.metadata["object_id"]] = obj.metadata["class"]
 
     _selected_objects = []
     _count_objects_per_class = defaultdict(int)
@@ -59,13 +69,14 @@ def process_chunk(chunk, selected_objs, max_augment_per_class, count_agument, ar
                 objects_list.append(obj)
                 count_agument[ref_obj_id] += 1
 
+    print("len object list:", len(objects_list))
     augmented_dataset = avocado.Dataset.from_objects(
-        "plasticc_augment_v3",
+        args.name,
         objects_list,
         chunk=dataset.chunk,
         num_chunks=dataset.num_chunks,
     )
-
+    print("dataframe columns:", augmented_dataset.metadata.columns)
     augmented_dataset.write()
 
     return count_agument
@@ -102,6 +113,8 @@ if __name__ == '__main__':
              'the data at once. This sets the total number of chunks to use. '
              '(default: %(default)s)',
     )
+    parser.add_argument("--name", type=str, default="plasticc_augment_v3")
+    parser.add_argument("--select_survey", type=str, default=None)
 
     args = parser.parse_args()
 

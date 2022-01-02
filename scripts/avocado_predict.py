@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 """Generate predictions for a dataset using avocado."""
-
+import os
+import sys
+main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, main_path)
 import argparse
 from tqdm import tqdm
 

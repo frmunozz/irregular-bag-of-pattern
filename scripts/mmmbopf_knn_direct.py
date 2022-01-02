@@ -34,42 +34,16 @@ if __name__ == "__main__":
              '(default: %(default)s)',
     )
     parser.add_argument(
-        "-m",
-        '--use_metadata',
-        default=None,
-        type=str,
-        help="Use the optional metadata on the classifier"
-    )
-
-    parser.add_argument(
-        "-p",
-        '--prototype',
-        default=None,
-        type=str,
-        help="Use prototypes to compute the KNN classifier"
-    )
-
-    parser.add_argument(
-        "-n",
-        '--normalizer',
-        default=None,
-        type=str,
-        help="Use Normalizer on the pipeline"
-    )
-
-    parser.add_argument(
-        "-s",
-        '--scaler',
-        default=None,
-        type=str,
-        help="Use StandarScaler on the pipeline"
-    )
-    parser.add_argument(
         "--tag",
         default="compact_LSA_features",
         type=str,
         help="Use a custom features tag for features h5 file"
     )
+    parser.add_argument('--use_metadata', action='store_true')
+    parser.add_argument('--prototype', action='store_true')
+    parser.add_argument('--normalizer', action='store_true')
+    parser.add_argument('--scaler', action='store_true')
+
     # python mmmbopf_knn_direct.py plasticc_augment_v3 plasticc_test --prototype=True --tag=features_LSA
     args = parser.parse_args()
 
@@ -86,17 +60,17 @@ if __name__ == "__main__":
     classes = np.unique(object_classes)
 
     # features
-    featurizer = MMMBOPFFeaturizer(include_metadata=args.use_metadata is not None)
+    featurizer = MMMBOPFFeaturizer(include_metadata=args.use_metadata)
     print("INCLUDE METADATA?:", featurizer.include_metadata)
 
     # classifier train
-    name = args.train_dataset + "_K-NN"
-    if args.use_metadata is not None:
+    name = "%s_K-NN_%s" % (args.train_dataset, args.tag)
+    if args.use_metadata:
         name += "_metadata"
 
-    classifier = KNNClassifier(name, featurizer, prototype=args.prototype is not None,
-                               normalizer=args.normalizer is not None,
-                               scaler=args.scaler is not None)
+    classifier = KNNClassifier(name, featurizer, prototype=args.prototype,
+                               normalizer=args.normalizer,
+                               scaler=args.scaler)
     print("PROTOTYPE:", classifier.prototype)
     print("NORMALIZER:", classifier.normalizer)
     print("SCALER:", classifier.scaler)
@@ -109,7 +83,7 @@ if __name__ == "__main__":
 
     # classifier predict (testset in chunks)
     print("PREDICT CLASSES FOR %s IN CHUNKS..." % args.test_dataset)
-    prototype_lbl = "prototype" if args.prototype is not None else "not_prototype"
+    prototype_lbl = "prototype" if args.prototype else "not_prototype"
     test_labels = np.array([])
     for chunk in tqdm(range(args.num_chunks), desc='Chunk',
                       dynamic_ncols=True):

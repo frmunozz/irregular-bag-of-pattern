@@ -15,7 +15,7 @@ from scipy import sparse
 import time
 import pickle
 from src.preprocesing import get_mmbopf_plasticc_path
-from src.mmmbopf import write_compact_features, ZeroVarianceMMMBOPF, CompactMMMBOPF, MMMBOPF
+from src.mmmbopf import write_features, ZeroVarianceMMMBOPF, CompactMMMBOPF, MMMBOPF
 
 from sklearn.feature_selection import VarianceThreshold
 import pandas as pd
@@ -37,29 +37,68 @@ _BANDS = ["lsstg", "lssti", "lsstr", "lsstu", "lssty", "lsstz"]
 
 # process the train set in chunks
 def process_chunk_sparse_features(chunk, method, args):
-
+    _ini_chunk = time.time()
+    print(" ")
+    print("Loading dataset (Chunk %d)... " % chunk, end="")
+    _ini = time.time()
     dataset = avocado.load(args.dataset, metadata_only=False,
                            chunk=chunk, num_chunks=args.num_chunks)
-    data = []
-    labels = []
-    objs = []
+    _end = time.time()
+    print("%d AstronomicalObjects loaded (Time: %.3f secs)" % (len(dataset.objects), _end - _ini))
+    print("Featurizing the dataset (Chunk %d)... " % chunk)
+    labels = dataset.metadata["class"].to_numpy()
+    objs = dataset.metadata.index.to_numpy()
+    chunk_repr = method.extended_IBOPF(dataset.objects, record_times=False)
+    _end_chunk = time.time()
+    print("[Chunk %d time]: %.3f secs." % (chunk, (_end_chunk - _ini_chunk)))
 
-    for reference_object in tqdm(
-            dataset.objects, desc="Reading chunk", dynamic_ncols=True, position=0, leave=True
-    ):
-        data.append(TimeSeriesObject.from_astronomical_object(reference_object).fast_format_for_numba_code(_BANDS))
-        labels.append(reference_object.metadata["class"])
-        objs.append(reference_object.metadata["object_id"])
-    data = np.array(data)
-    labels = np.array(labels)
-    objs = np.array(objs)
-
-    chunk_repr = method.mmm_bopf(data, chunk=chunk)
     return chunk_repr, labels, objs
 
 
+def sparse_features_to_compact(sparse_features, labels, method):
+
+    # apply drop zero variance only if is LSA
+    if method.C.upper() == "LSA":
+        print("[Drop zero variance]: applying (train) zero variance model... ", end="")
+        _ini = time.time()
+        # we set a new variance threshold pipeline
+        var_t = ZeroVarianceMMMBOPF(filename=args.zerovar_filename)
+        var_t.set_pipeline()
+        sparse_features = var_t.fit_transform(sparse_features)
+        # save the data
+        var_t.save_pipeline()
+        _end = time.time()
+        print("Done (time: %.3f secs)" % (_end - _ini))
+
+    # apply compact model
+    print("[Compact features]: applying (train) compact model '%s'... " % method.C.upper(), end="")
+    _ini = time.time()
+    compact = CompactMMMBOPF(filename=args.compact_filename, method=method.C.upper())
+
+    n_variables = len(_BANDS)
+    n_features = sparse_features.shape[1]
+    classes = np.unique(data_labels)
+
+    # set the pipeline
+    compact.set_pipeline(method, n_variables, n_features, classes)
+
+    # fit and transform
+    compact_features = compact.fit_transform(sparse_features, data_labels)
+
+    if method.C == "MANOVA":
+        compact_features = compact_features.toarray()
+
+    # save the pipeline
+    compact.save_pipeline()
+    _end = time.time()
+    print("Done (time: %.3f secs)" % (_end - _ini))
+
+    return compact_features
+
+
 # usage example
-# python fea2method_fit.py plasticc_augment_v3 optimal_config_lsa -nj 6 -nc 20 -cm LSA -zf zero_var_lsa.pkl -cf compact_lsa.pkl
+# python fea.method_fit.py plasticc_augment_v3 optimal_config_lsa -nj 6 -nc 20 -cm LSA -zf zero_var_lsa.pkl -cf compact_lsa.pkl
+# python -m sklearnex fea.method_fit.py plasticc_augment_v3 optimal_config_lsa.json -nj 6 -nc 5 -cm LSA -zf zero_var_lsa_v3.pkl -cf compact_lsa_v3.pkl --tag=features_v3
 if __name__ == '__main__':
     ini = time.time()
     parser = argparse.ArgumentParser(description=__doc__)
@@ -102,6 +141,8 @@ if __name__ == '__main__':
         help='If set, only process this chunk of the dataset. This is '
              'intended to be used to split processing into multiple jobs.'
     )
+
+    parser.add_argument("--tag", type=str, default="features")
     parser.add_argument('-zf', '--zerovar_filename', type=str, default="zero_variance_model.pkl")
     parser.add_argument('-cf', '--compact_filename', type=str, default="compact_pipeline.pkl")
     parser.add_argument('-cm', '--compact_method', type=str, default="LSA")
@@ -121,73 +162,35 @@ if __name__ == '__main__':
     # start transforming to MMBOPF repr in chunks
     if args.chunk is not None:
         # Process a single chunk
-        data_repr, data_labels, object_ids = process_chunk_sparse_features(args.chunk, method, args)
+        sparse_features, data_labels, object_ids = process_chunk_sparse_features(args.chunk, method, args)
     else:
         # Process all chunks
-        print("::CHUNKS>Processing the dataset in %d chunks..." % args.num_chunks)
-        chunks_repr = []
+        print("[Process dataset]: Processing the dataset in %d chunks..." % args.num_chunks)
+        chunks_features = []
         chunks_labels = []
         object_ids = []
         for chunk in tqdm(range(args.num_chunks), desc='chunks',
                           dynamic_ncols=True):
             i_repr, i_labels, objs = process_chunk_sparse_features(chunk, method, args)
-            chunks_repr.append(i_repr)
+            chunks_features.append(i_repr)
             chunks_labels.append(i_labels)
             object_ids.append(objs)
 
-        data_repr = sparse.vstack(chunks_repr, format="csr")
+        sparse_features = sparse.vstack(chunks_features, format="csr")
         data_labels = np.hstack(chunks_labels)
         object_ids = np.hstack(object_ids)
-        print("::CHUNKS>done")
 
-    # apply drop zero variance only if is LSA
-    if method.C.upper() == "LSA":
-        print("::ZEROVAR>starting to apply zero variance drop")
-        # we set a new variance threshold pipeline
-        var_t = ZeroVarianceMMMBOPF(filename=args.zerovar_filename)
-        var_t.set_pipeline()
-        data_repr = var_t.fit_transform(data_repr)
-        print(">variance_ mask true count: ", var_t.pipeline.get_support().sum())
-        # save the data
-        var_t.save_pipeline()
-        print("::ZEROVAR>done")
+    compact_features = sparse_features_to_compact(sparse_features, data_labels, method)
 
-    # apply compact model
-    print("::COMPACT>start to apply compact method")
-    compact = CompactMMMBOPF(filename=args.compact_filename)
-
-    n_variables = len(_BANDS)
-    n_features = data_repr.shape[1]
-    classes = np.unique(data_labels)
-
-    # set the pipeline
-    compact.set_pipeline(method, n_variables, n_features, classes)
-
-    # fit and transform
-    data_repr = compact.fit_transform(data_repr, data_labels)
-
-    if method.C == "MANOVA":
-        data_repr = data_repr.toarray()
-
-    # save the pipeline
-    compact.save_pipeline()
-    print("::COMPACT>done")
-
-    print("RESULTING DATA MATRIX")
-    print(">NUMBER OF OBJECTS:", len(data_labels))
-    print(">NUMBER OF FEATURES ON SPARSE:", n_features)
-    print(">NUMBER OF FEATURES ON COMPACT:", data_repr.shape)
-
-    import pdb
-    pdb.set_trace()
-
-    print("::SAVE>transforming data to AVOCADO format and save")
-    df = pd.DataFrame(data_repr, index=object_ids, columns=["fea"+str(i+1) for i in range(data_repr.shape[1])])
+    print("[Save features]: transforming data to AVOCADO format and save... ", end="")
+    _ini = time.time()
+    df = pd.DataFrame(compact_features, index=object_ids, columns=["fea"+str(i+1) for i in range(compact_features.shape[1])])
     df.index.name = "object_id"
 
-    name = "compact_features_%s.h5" % method.C
-    write_compact_features(name, df, settings_dir="method_directory")
-    print("::SAVE>done")
+    name = "%s_%s_%s.h5" % (args.tag, method.C, args.dataset)
+    write_features(name, df, settings_dir="method_directory")
+    _end = time.time()
+    print("Done (time: %.3f secs)" % (_end - _ini))
     main_end = time.time()
 
     try:

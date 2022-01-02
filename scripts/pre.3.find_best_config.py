@@ -42,9 +42,9 @@ def get_fixed_arguments():
     return doc_kwargs, lsa_kwargs, pre_load_bopf
 
 
-def get_dataset_variables(dataset_name):
+def get_dataset_variables(dataset_name, select_survey=None):
     # read dataset
-    dataset, labels_, metadata, split_folds = gen_dataset_from_h5(dataset_name, bands=_BANDS, num_folds=5)
+    dataset, labels_, metadata, split_folds = gen_dataset_from_h5(dataset_name, bands=_BANDS, num_folds=5, select_survey=select_survey)
     split_folds = rearrange_splits(split_folds)
     classes = np.unique(labels_)
     print(len(labels_))
@@ -58,27 +58,37 @@ def check_or_create_folder(path):
         os.mkdir(path)
 
 
-def get_files_and_folders(c):
+def get_files_and_folders(c, select_survey=None):
     data_path = get_mmbopf_plasticc_path()
 
     resolution_search_main_directory = os.path.join(data_path, "resolution_search")
     check_or_create_folder(resolution_search_main_directory)
+    resolution_search_base_result = os.path.join(data_path, "res_search_base_res")
+    check_or_create_folder(resolution_search_base_result)
     resolution_search_directory = os.path.join(resolution_search_main_directory, c.lower())
     check_or_create_folder(resolution_search_directory)
-    method_sub_directory = os.path.join(resolution_search_directory, "%s_resolution_search" % c.lower())
+    name = "%s_resolution_search" % c.lower()
+    if select_survey is not None:
+        name += "_%s" % select_survey
+    method_sub_directory = os.path.join(resolution_search_directory, name)
     check_or_create_folder(method_sub_directory)
-    config_file = os.path.join(data_path, "optimal_config_%s.json" % c.lower())
 
-    return resolution_search_directory, method_sub_directory, config_file
+    name = "optimal_config_%s" % c.lower()
+    if select_survey is not None:
+        name += "_%s" % select_survey
+    name += ".json"
+    config_file = os.path.join(data_path, name)
+
+    return resolution_search_directory, method_sub_directory, config_file, resolution_search_base_result
 
 
 def run_script(dataset_name, q_code, q_search_path, q_search_cv_results,
-               top_k, resolution_max, alpha, C, timestamp, n_jobs):
+               top_k, resolution_max, alpha, C, timestamp, n_jobs, select_survey=None):
 
-    dataset, labels_, metadata, split_folds, classes, N = get_dataset_variables(dataset_name)
+    dataset, labels_, metadata, split_folds, classes, N = get_dataset_variables(dataset_name, select_survey=select_survey)
     doc_kwargs, lsa_kwargs, pre_load_bopf = get_fixed_arguments()
     drop_zero_variance = C.lower() == "lsa"  # drop zero variance doesnt work for MANOVA
-    resolution_search_directory, method_sub_directory, config_file = get_files_and_folders(C)
+    resolution_search_directory, method_sub_directory, config_file,  out_base_bopf_path = get_files_and_folders(C, select_survey=select_survey)
 
 
     # get pipeline
@@ -89,15 +99,22 @@ def run_script(dataset_name, q_code, q_search_path, q_search_cv_results,
 
     # pre-load saved base bopf
     print("LOADING PRECOMPUTED BASE BOPF...")
-    cv_smm_bopf_results = load_bopf_from_quantity_search(q_search_path,
+    if args.cv_smm_again is None:
+        cv_smm_bopf_results = load_bopf_from_quantity_search(q_search_path,
                                                          q_search_cv_results,
                                                          method.quantities_code())
+        wins = None
+    else:
+        cv_smm_bopf_results = None
+        wins = np.append(np.array([4, 6, 8, 10, 14, 18, 25]), np.logspace(np.log10(30), np.log10(1000), 20))
+
+    wls = [1, 2, 3]
 
     R, _, optimal_acc = cv_mmm_bopf(
         dataset, labels_, method, cv=split_folds, resolution_max=resolution_max,
         top_k=top_k, out_path=method_sub_directory, n_jobs=n_jobs,
         cv_smm_bopf_results=cv_smm_bopf_results, drop_zero_variance=drop_zero_variance,
-        timestamp=timestamp)
+        timestamp=timestamp, out_base_bopf_path=out_base_bopf_path, wls=wls, wins=wins)
 
     return R, optimal_acc, method, config_file
 
@@ -151,6 +168,9 @@ if __name__ == '__main__':
         default=-1,
         help="The number of process to run in parallel"
     )
+    parser.add_argument("--cv_smm_again", type=str, default=None)
+
+    parser.add_argument("--split_surveys", type=str, default=None)
     args = parser.parse_args()
 
     if args.n_jobs == -1:
@@ -163,21 +183,31 @@ if __name__ == '__main__':
     quantity_search_resume = pd.read_csv(args.multi_quantity_resume_file, index_col=None)
     quantity_search_resume = quantity_search_resume.sort_values("cv_mean", ascending=False)
 
-    top1 = quantity_search_resume.iloc[0]
-    R1, optimal_acc1, method1, config_file1 = run_script(
-        args.dataset, top1.quantity, top1.q_search_path, top1.cv_results_file, args.top_k,
-        args.resolution_max, args.alpha, args.compact_method, args.timestamp, n_jobs)
+    top1 = quantity_search_resume[quantity_search_resume["quantity"] == "(TrMm-MmMn-MmMx-TrMn)"].iloc[0]
+    if args.split_surveys:
+        R1, optimal_acc1, method1, config_file1 = run_script(
+            args.dataset, top1.quantity, top1.q_search_path, top1.cv_results_file, args.top_k,
+            args.resolution_max, args.alpha, args.compact_method, args.timestamp, n_jobs, select_survey="ddf")
 
-    top2 = quantity_search_resume.iloc[1]
-    R2, optimal_acc2, method2, config_file2 = run_script(
-        args.dataset, top2.quantity, top2.q_search_path, top2.cv_results_file, args.top_k,
-        args.resolution_max, args.alpha, args.compact_method, args.timestamp, n_jobs)
+        R2, optimal_acc2, method2, config_file2 = run_script(
+            args.dataset, top1.quantity, top1.q_search_path, top1.cv_results_file, args.top_k,
+            args.resolution_max, args.alpha, args.compact_method, args.timestamp, n_jobs, select_survey="wdf")
 
-    if optimal_acc2 > optimal_acc1:
-        R1 = R2
-        optimal_acc1 = optimal_acc2
-        method1 = method2
-        config_file1 = config_file2
+    else:
+        R1, optimal_acc1, method1, config_file1 = run_script(
+            args.dataset, top1.quantity, top1.q_search_path, top1.cv_results_file, args.top_k,
+            args.resolution_max, args.alpha, args.compact_method, args.timestamp, n_jobs)
+
+    # top2 = quantity_search_resume.iloc[1]
+    # R2, optimal_acc2, method2, config_file2 = run_script(
+    #     args.dataset, top2.quantity, top2.q_search_path, top2.cv_results_file, args.top_k,
+    #     args.resolution_max, args.alpha, args.compact_method, args.timestamp, n_jobs)
+
+    # if optimal_acc2 > optimal_acc1:
+    #     R1 = R2
+    #     optimal_acc1 = optimal_acc2
+    #     method1 = method2
+    #     config_file1 = config_file2
 
     end = time.time()
 
@@ -194,6 +224,7 @@ if __name__ == '__main__':
         f.write("resolutions: %s\n" % repr(R1))
         f.write("optimal acc_cv: %s\n" % str(optimal_acc1))
         f.write("timestamp: %s\n" % str(args.timestamp))
+        f.write("split_surveys: %s\n" % "True" if args.split_surveys is not None else "False")
         f.write("elapse time: %.3f secs (%.4f Hours)\n" % ((end - ini), (end - ini) / 3600))
         f.write("comment: run with only forward slider and fixed index\n")  # this change
         f.write("++++++++++++++++++++++++++++++++\n")
