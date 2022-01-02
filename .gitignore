@@ -140,5 +140,9 @@ papers/
 drafts/
 externals/
 
+# figures
+figs/
+figures/
+
 
 avocado_settings.json
