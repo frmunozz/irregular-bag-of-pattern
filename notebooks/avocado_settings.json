@@ -2,18 +2,23 @@
     "user_settings_file": "avocado_settings.json",
     "data_directory": "../data/plasticc/data",
     "method_directory": "../data/plasticc/MMMBOPF",
+    "avocado_directory": "../data/plasticc/AVOCADO",
 
     "num_folds": 5,
     "fold_random_state": 1,
 
     "augment_retries": 10,
 
-    "features_directory": "./features",
+    "features_directory": "../data/plasticc/AVOCADO/features",
     "features_tag": "features_v1",
 
-    "classifier_directory": "./classifiers",
+    "classifier_directory": "../data/plasticc/AVOCADO/classifiers",
 
-    "predictions_directory": "./predictions",
+    "compact_methods_directory": "../data/plasticc/MMMBOPF/compact_methods",
+
+    "predictions_directory": "../data/plasticc/AVOCADO/predictions",
+    "predictions_avocado_directory": "../data/plasticc/AVOCADO/predictions",
+    "predictions_mmmbopf_directory": "../data/plasticc/MMMBOPF/predictions",
 
     "redshift_weighting_group_key": "ddf",
     "redshift_weighting_min_redshift": 0.1,
