@@ -51,7 +51,7 @@ def quantity_code_extend(q_code):
     return f_arr
 
 
-def check_file_path(path, name):
+def check_file_path(path, name, overwrite=False):
     file_path = os.path.join(path, name)
     if os.path.exists(file_path):
         name_arr = name.split()
@@ -61,20 +61,40 @@ def check_file_path(path, name):
             new_name = "%s_%s.%s" % (".".join(name_arr[:-1]), time.strftime("%Y%m%d-%H%M%S"), name_arr[-1])
         else:
             raise ValueError("invalid name '%s'" % name)
-        print("WARNING file '%s' already exists, generating new file '%s'" % (name, new_name))
-        file_path = os.path.join(path, new_name)
+        if overwrite:
+            print("WARNING overwriting file '%s'" % file_path)
+            os.remove(file_path)
+        else:
+            print("WARNING file '%s' already exists, generating new file '%s'" % (name, new_name))
+            file_path = os.path.join(path, new_name)
     return file_path
 
 
-def write_compact_features(name, data, chunk=None, num_chunks=None,
-                           settings_dir="", check_file=True):
-    classifier_directory = avocado.settings[settings_dir]
-    features_directory = os.path.join(classifier_directory, "features")
+def check_features_path(settings_dir, features_dir):
+    main_directory = avocado.settings[settings_dir]
+    features_directory = os.path.join(main_directory, features_dir)
+    if not os.path.exists(features_directory):
+        os.mkdir(features_directory)
+    return features_directory
+
+
+def write_features(name, data, chunk=None, num_chunks=None,
+                   settings_dir="", check_file=True, data_records=None, features_dir="compact_features", overwrite=False):
+    main_directory = avocado.settings[settings_dir]
+    features_directory = os.path.join(main_directory, features_dir)
     if not os.path.exists(features_directory):
         os.mkdir(features_directory)
     if check_file:
-        file_path = check_file_path(features_directory, name)
+        file_path = check_file_path(features_directory, name, overwrite=overwrite)
     else:
         file_path = os.path.join(features_directory, name)
 
     avocado.write_dataframe(file_path, data, "features", chunk=chunk, num_chunks=num_chunks)
+
+    if data_records is not None:
+        avocado.write_dataframe(file_path, data_records, "record_times", chunk=chunk, num_chunks=num_chunks)
+
+
+def load_features(name, chunk=None, num_chunks=None,
+                  settings_dir="method_directory", check_file=True, features_dir="compact_features"):
+    features_directory = check_features_path(settings_dir, features_dir)

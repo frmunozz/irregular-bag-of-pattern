@@ -11,6 +11,9 @@ from .feature_extraction.centroid import CentroidClass
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import Normalizer, StandardScaler
 from avocado.utils import logger
+import time
+from tqdm import tqdm
+from .timeseries_object import TimeSeriesObject
 
 
 settings = avocado.settings
@@ -59,14 +62,12 @@ class PlasticcAugmentor(avocado.plasticc.PlasticcAugmentor):
         return observations, pass_detection
 
 
-class Featurizer(avocado_featurizer, ABC):
-    pass
-
-
 class AVOCADOFeaturizer(avocado.plasticc.PlasticcFeaturizer):
 
-    def __init__(self, discard_metadata=False):
+    def __init__(self, discard_metadata=False, record_times=False):
         self.discard_metadata = discard_metadata
+        self.record_times = record_times
+        self.records = []
 
     def select_features(self, raw_features):
 
@@ -78,16 +79,29 @@ class AVOCADOFeaturizer(avocado.plasticc.PlasticcFeaturizer):
 
         return features
 
+    def extract_raw_features(self, astronomical_object, return_model=False):
+        ini = time.time()
+        raw_features = super(AVOCADOFeaturizer, self).extract_raw_features(astronomical_object, return_model=return_model)
+        end = time.time()
+
+        if self.record_times:
+            self.records.append([len(astronomical_object.observations), end - ini])
+
+        return raw_features
+
 
 class MMMBOPFFeaturizer(avocado.plasticc.PlasticcFeaturizer):
 
-    def __init__(self, include_metadata=False, metadata_keys=None):
+    def __init__(self, include_metadata=False, metadata_keys=None, method=None, zero_variance_model=None, compact_model=None):
         if metadata_keys is None:
             metadata_keys = ["host_photoz", "host_photoz_error"]
 
         self.metadata_keys = metadata_keys
         self.include_metadata = include_metadata
         self.metadata = None
+        self.method = method
+        self.zero_variance_model = zero_variance_model
+        self.compact_model = compact_model
 
     def select_features(self, raw_features):
         # in this case raw features are the compact features
@@ -97,6 +111,23 @@ class MMMBOPFFeaturizer(avocado.plasticc.PlasticcFeaturizer):
                 raw_features.loc[:, k] = self.metadata[k]
 
         return raw_features
+
+    def extract_raw_features(self, astronomical_object, return_model=False):
+        if self.method is None:
+            raise ValueError("cannot run extraction without the method")
+
+        data = TimeSeriesObject.from_astronomical_object(astronomical_object).fast_format_for_numba_code(astronomical_object.bands)
+
+        sparse_data = self.method.mmm_bopf(data)
+
+        if self.zero_variance_model is not None:
+            sparse_data = self.zero_variance_model.transform(sparse_data)
+
+        if self.compact_model is not None:
+            compact_data = self.compact_model.transform(sparse_data)
+            return compact_data
+        else:
+            return sparse_data
 
 
 def get_classifier_path(name, settings_dir="classifier_directory"):
@@ -157,6 +188,7 @@ class LightGBMClassifier(avocado.LightGBMClassifier):
         import pickle
 
         path = self.path
+        print("path:", path)
 
         # Make the containing directory if it doesn't exist yet.
         directory = os.path.dirname(path)
@@ -215,6 +247,7 @@ class Dataset(avocado.Dataset):
             num_chunks=num_chunks,
             object_class=object_class)
         self.predictions_dir = predictions_dir
+        self.records = None
 
     def get_predictions_path(self, classifier=None):
 
@@ -245,7 +278,7 @@ class Dataset(avocado.Dataset):
         raw_features : pandas.DataFrame
             The extracted raw features.
         """
-        features_directory = os.path.join(settings["method_directory"], "features")
+        features_directory = os.path.join(settings["method_directory"], "compact_features")
 
         # features_compact_LSA_plasticc_augment_v3
         features_filename = "%s_%s.h5" % (features_tag, self.name)
@@ -258,6 +291,8 @@ class Dataset(avocado.Dataset):
             num_chunks=self.num_chunks,
             **kwargs
         )
+
+        print("raw compact features shape:", self.raw_features.values.shape)
 
         return self.raw_features
 
@@ -348,9 +383,99 @@ class Dataset(avocado.Dataset):
         features = featurizer.select_features(self.raw_features)
 
         self.features = features
-        print("FEATURES SELECTED SHAPE:", self.features.shape)
+        # print("FEATURES SELECTED SHAPE:", self.features.shape)
 
         return features
+
+    def extract_raw_features(self, featurizer, keep_models=False):
+        """(from AVOCADO)Extract raw features from the dataset.
+
+                The raw features are saved as `self.raw_features`.
+
+                Parameters
+                ----------
+                featurizer : :class:`AVOCADOFeaturizer`
+                    The featurizer that will be used to calculate the features.
+                keep_models : bool
+                    If true, the models used for the features are kept and stored as
+                    Dataset.models. Note that not all featurizers support this.
+
+                Returns
+                -------
+                raw_features : pandas.DataFrame
+                    The extracted raw features.
+                """
+        list_raw_features = []
+        object_ids = []
+        models = {}
+        for obj in tqdm(self.objects, desc="Object", dynamic_ncols=True):
+            obj_features = featurizer.extract_raw_features(
+                obj, return_model=keep_models
+            )
+
+            if keep_models:
+                obj_features, model = obj_features
+                models[obj.metadata["object_id"]] = model
+
+            list_raw_features.append(obj_features.values())
+            object_ids.append(obj.metadata["object_id"])
+
+        # Pull the keys off of the last extraction. They should be the same for
+        # every set of features.
+        keys = obj_features.keys()
+
+        raw_features = pd.DataFrame(list_raw_features, index=object_ids, columns=keys)
+        raw_features.index.name = "object_id"
+
+        self.raw_features = raw_features
+
+        if featurizer.record_times:
+            records = pd.DataFrame(featurizer.records, index=object_ids, columns=["n", "time"])
+            records.index.name = "object_id"
+            self.records = records
+
+        else:
+            self.records = None
+
+        if keep_models:
+            self.models = models
+
+        return raw_features
+
+    def write_raw_features(self, tag=None, **kwargs):
+        """(from AVOCADO)Write the raw features out to disk.
+
+                The features will be stored in the features directory using the
+                dataset's name and the given features tag.
+
+                Parameters
+                ----------
+                tag : str (optional)
+                    The tag for this version of the features. By default, this will use
+                    settings['features_tag'].
+                **kwargs
+                    Additional arguments to be passed to `utils.write_dataframe`
+                """
+        raw_features_path = self.get_raw_features_path(tag=tag)
+
+        avocado.write_dataframe(
+            raw_features_path,
+            self.raw_features,
+            "raw_features",
+            chunk=self.chunk,
+            num_chunks=self.num_chunks,
+            **kwargs
+        )
+
+        if self.records is not None:
+            avocado.write_dataframe(
+                raw_features_path,
+                self.records,
+                "record_times",
+                chunk=self.chunk,
+                num_chunks=self.num_chunks,
+                **kwargs
+            )
 
 
 class KNNClassifier(Classifier):
@@ -426,7 +551,3 @@ class KNNClassifier(Classifier):
         res_pd = pd.DataFrame({"class": real_labels, "pred": pred_labels}, index=dataset.metadata.index)
 
         return res_pd
-
-
-class AstronomicalObject(avocado.AstronomicalObject):
-    pass

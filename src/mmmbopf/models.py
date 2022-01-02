@@ -32,7 +32,8 @@ def compact_method_pipeline(method, n_variables, n_features, classes):
     # feature selection to k (gives matrix of shape (m, k, b))
     target_k = min(method.N // n_variables, n_features)
     # target_k = self.N // n_variables
-    manova = GeneralSelectKTop(target_k, manova_rank_fast, allow_nd=True, n_variables=n_variables)
+    manova = GeneralSelectKTop(target_k, manova_rank_fast, allow_nd=True, n_variables=n_variables,
+                               parameters_list=method.get_parameters())
 
     # latent semantic analysis
     target_k2 = min(method.N, int(n_features * n_variables))
@@ -76,10 +77,10 @@ class MMMBOPFPipelineProcessor(object):
 
         return working_directory
 
-    def save_pipeline(self, check_file=True):
+    def save_pipeline(self, check_file=True, overwrite=True):
         working_directory = self.get_working_dir()
         if check_file:
-            file = check_file_path(working_directory, self.filename)
+            file = check_file_path(working_directory, self.filename, overwrite=overwrite)
         else:
             file = os.path.join(working_directory, self.filename)
         joblib.dump(self.pipeline, file)
@@ -105,8 +106,9 @@ class MMMBOPFPipelineProcessor(object):
 
 class CompactMMMBOPF(MMMBOPFPipelineProcessor):
 
-    def __init__(self, filename="compact_pipeline.pkl", settings_dir="method_directory"):
-        super(CompactMMMBOPF, self).__init__(filename, settings_dir, "compact")
+    def __init__(self, filename="compact_pipeline.pkl", settings_dir="method_directory", method=None):
+        super(CompactMMMBOPF, self).__init__(filename, settings_dir, "models")
+        self.method = method if method is not None else "Unknown"
 
     def set_pipeline(self, method, n_variables, n_features, classes):
         self.pipeline = compact_method_pipeline(method, n_variables, n_features, classes)
@@ -115,7 +117,7 @@ class CompactMMMBOPF(MMMBOPFPipelineProcessor):
 class ZeroVarianceMMMBOPF(MMMBOPFPipelineProcessor):
 
     def __init__(self, filename="zero_variance_model.pkl", settings_dir="method_directory"):
-        super(ZeroVarianceMMMBOPF, self).__init__(filename, settings_dir, "zero_variance")
+        super(ZeroVarianceMMMBOPF, self).__init__(filename, settings_dir, "models")
 
     def set_pipeline(self, *args, **kwargs):
         self.pipeline = VarianceThreshold()

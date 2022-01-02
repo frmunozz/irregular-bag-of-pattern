@@ -8,6 +8,9 @@ from numba import njit
 from numba.typed import List
 import multiprocessing as mp
 import time
+from avocado import AstronomicalObject
+from ...timeseries_object import TimeSeriesObject
+from collections import defaultdict
 
 _BANDS = ["lsstg", "lssti", "lsstr", "lsstu", "lssty", "lsstz"]
 
@@ -668,27 +671,9 @@ def transform(dataset, n_bands, win=50, wl=4, alphabet_size=np.array([4]),
     return m_bop
 
 
-def multiprocess_text_transform(dataset, n_bands, win=50, wl=4, alphabet_size=np.array([4]),
-                                quantity=np.array(["mean"]), num_reduction=True,
-                                tol=6, mean_bp_dist="normal", threshold=None, n_jobs=-1,
-                                extra_desc="", chunk_size=10, position=0, leave=True):
-    _alpha_size_by_quantity = get_alpha_by_quantity(alphabet_size, quantity)
-    bop_size = (alphabet_size.prod() + 1) ** wl  # only work with special character
-
-    if threshold is None:
-        threshold = wl
-
-    mp_class = MPTextTransform(n_bands, win, wl, alphabet_size, quantity, num_reduction,
-                               tol, mean_bp_dist, threshold, bop_size, _alpha_size_by_quantity)
-    print("class defined, starting transform")
-    m_bop = mp_class.transform(dataset, n_jobs, extra_desc=extra_desc, chunk_size=chunk_size,
-                               position=position, leave=leave)
-    return m_bop
-
-
 def mp_worker(sub_dataset, n_bands, win, wl, alphabet_size,
               quantity, num_reduction,
-              tol, mean_bp_dist, threshold, res_queue, ini, end, worker_id):
+              tol, mean_bp_dist, threshold, res_queue, ini, end, worker_id, record_times):
     try:
         _alpha_size_by_quantity = get_alpha_by_quantity(alphabet_size, quantity)
         bop_size = (alphabet_size.prod() + 1) ** wl  # only work with special character
@@ -698,14 +683,28 @@ def mp_worker(sub_dataset, n_bands, win, wl, alphabet_size,
             threshold = wl
 
         corpus = []
+        _times = []
+        _lengths = []
+        _widths = []
 
         for i in range(m):
-            fluxes, times, bands_ini, bands_end = sub_dataset[i]
+            obj = sub_dataset[i]
+            if isinstance(obj, AstronomicalObject):
+                fluxes, times, bands_ini, bands_end = TimeSeriesObject.from_astronomical_object(obj).fast_format_for_numba_code(_BANDS)
+            else:
+                fluxes, times, bands_ini, bands_end = obj
+            _ini = time.time()
             doc, _dropped_count = generate_multivariate_text(fluxes, times, bands_ini, bands_end, n_bands, np.array(_BANDS),
                                                              bop_size,
                                                              _alpha_size_by_quantity, win, wl,
                                                              alphabet_size, quantity, num_reduction,
                                                              tol, mean_bp_dist, threshold)
+            _end = time.time()
+            if record_times:
+                _times.append(_end - _ini)
+                _widths.append(np.max(times) - np.min(times))
+                _lengths.append(len(fluxes) if doc is not None else -1)
+
             # doc is a sparse matrix of shape (1, N_bands * bop_size)
             # Bag-of-Pattern should be a sparse matrix of shape (N, N_bands * bop_size)
             # then we will create a list of all the doc and then apply vertical_stack
@@ -719,26 +718,25 @@ def mp_worker(sub_dataset, n_bands, win, wl, alphabet_size,
         # then we create the final sparse matrix
         m_bop = sparse.vstack(corpus, format="csr")
 
-        res_queue.put((ini, end, worker_id, m_bop))
+        res_queue.put((ini, end, worker_id, m_bop, _times, _lengths, _widths))
     except Exception as e:
         print("worker (id: %d)[%d,%d] failed, error: %s" % (worker_id, ini, end, e))
 
 
 def mp_text_transform(dataset, n_bands, win=50, wl=4, alphabet_size=np.array([4]),
                       quantity=np.array(["mean"]), quantity_symbol="", num_reduction=True,
-                      tol=6, mean_bp_dist="normal", threshold=None, n_jobs=-1, print_time=False):
+                      tol=6, mean_bp_dist="normal", threshold=None, n_jobs=-1, print_time=False, record_times=False):
     if isinstance(alphabet_size, list):
         alphabet_size = np.array(alphabet_size)
     if isinstance(quantity, list):
         quantity = np.array(quantity)
-    # print("alphabet_size:", alphabet_size, type(quantity))
-    # print("quantity", quantity, type(quantity))
 
     if n_jobs == -1:
         n_jobs = multiprocessing.cpu_count()
-    # print("n_jobs", n_jobs)
 
-    print("[win: %.3f, wl: %d, Q: %s]: PARALLEL PROCESSING (%d JOBS)... " % (win, wl, quantity_symbol, n_jobs), end="\r")
+    if print_time:
+        print("[win: %.3f, wl: %d, Q: %s]: PARALLEL PROCESSING (%d JOBS)... " % (win, wl, quantity_symbol, n_jobs), end="\r")
+
     process_ini_time = time.time()
 
     N = len(dataset)
@@ -755,62 +753,153 @@ def mp_text_transform(dataset, n_bands, win=50, wl=4, alphabet_size=np.array([4]
         jobs.append(mp.Process(target=mp_worker,
                                args=(sub_dataset, n_bands, win, wl, alphabet_size,
                                      quantity, num_reduction, tol, mean_bp_dist, threshold, result_queue,
-                                     ini, end, i)))
+                                     ini, end, i, record_times)))
         jobs[-1].start()
 
     for p in jobs:
         p.join()
 
     results_bop = [None] * n_jobs
+    time_records = [None] * n_jobs
+    length_records = [None] * n_jobs
+    widths_records = [None] * n_jobs
     num_res = result_queue.qsize()
     while num_res >0:
-        ini, end, worker_id, m_bop = result_queue.get()
+        ini, end, worker_id, m_bop, _times, _lengths, _widths = result_queue.get()
         results_bop[worker_id] = m_bop
+        time_records[worker_id] = _times
+        length_records[worker_id] = _lengths
+        widths_records[worker_id] = _widths
         num_res -= 1
 
     m_final_bop = sparse.vstack(results_bop, format="csr")
+    time_records = np.hstack(time_records)
+    length_records = np.hstack(length_records)
+    widths_records = np.hstack(widths_records)
+
     process_end_time = time.time()
     if print_time:
         print("[win: %.3f, wl: %d, Q: %s]: PARALLEL PROCESSING (%d JOBS)... DONE (%.3f secs)" %
               (win, wl, quantity_symbol, n_jobs, process_end_time - process_ini_time))
     # print("[win: %.3f, wl: %d, Q: %s]: PARALLEL PROCESSING (%d JOBS)... DONE! (time: %f)" % (
     #     win, wl, quantity_symbol, n_jobs, process_end_time - process_ini_time), end="\r")
-    return m_final_bop, process_end_time - process_ini_time
+    return m_final_bop, process_end_time - process_ini_time, time_records, length_records, widths_records
 
 
-class MPTextTransform:
-    def __init__(self, n_bands, win, wl, alphabet_size, quantity, num_reduction,
-                 tol, mean_bp_dist, threshold, bop_size, _alpha_size_by_quantity):
-        self.N_bands = n_bands
-        self.win = win
-        self.wl = wl
-        self.alpha = alphabet_size
-        self.Q = quantity
-        self.num_reduction = num_reduction
-        self.tol = tol
-        self.mean_bp_dist = mean_bp_dist
-        self.threshold = threshold
-        self.bop_size = bop_size
-        self._alpha_by_Q = _alpha_size_by_quantity
+def worker_extended_ibopf(dataset, n_bands, parameters, result_queue, worker_id, record_times):
 
-    def worker(self, x):
-        fluxes, times, bands_ini, bands_end = x
-        print(bands_ini, bands_end)
-        doc, _dropped_count = generate_multivariate_text(fluxes, times, bands_ini, bands_end, self.N_bands,
-                                                         np.array(_BANDS), self.bop_size, self._alpha_by_Q, self.win,
-                                                         self.wl, self.alpha, self.Q, self.num_reduction,
-                                                         self.tol, self.mean_bp_dist, self.threshold)
-        doc2 = sparse.csr_matrix(doc)
-        return doc2
+    try:
+        new_parameters = []
+        for _id, param in enumerate(parameters):
+            (win, wl, q, alpha, q_symbol, tol, mean_bp, num_reduction, threshold) = param
+            if isinstance(alpha, list):
+                alpha = np.array(alpha)
+            if isinstance(q, list):
+                q = np.array(q)
 
-    def transform(self, dataset, n_jobs=-1, extra_desc="", chunk_size=1, position=0, leave=True):
-        if n_jobs == -1:
-            n_jobs = multiprocessing.cpu_count() + 4
-            print("n_jobs", n_jobs)
-        print("entering process_map")
-        print("X", type(dataset), len(dataset))
-        r = process_map(self.worker, dataset, max_workers=n_jobs,
-                        desc="[win: %.3f, wl: %d%s]" % (self.win, self.wl, extra_desc),
-                        chunksize=chunk_size, position=position, leave=leave)
-        m_bop = sparse.vstack(r, format="csr")
-        return m_bop
+            _alpha_size_by_quantity = get_alpha_by_quantity(alpha, q)
+            bop_size = (alpha.prod() + 1) ** wl  # only work with special character
+            new_parameters.append((win, wl, q, alpha, q_symbol, tol, mean_bp, num_reduction,
+                                   threshold, bop_size, _alpha_size_by_quantity, _id))
+
+        # new_parameters = np.array(new_parameters)
+
+        corpus = []
+        m = len(dataset)
+        _records_time = np.zeros(m)
+        _records_length = np.zeros(m)
+        for i in range(m):
+            _ini = time.time()
+            obj = dataset[i]
+            if isinstance(obj, AstronomicalObject):
+                fluxes, times, bands_ini, bands_end = TimeSeriesObject.from_astronomical_object(
+                    obj).fast_format_for_numba_code(_BANDS)
+            else:
+                fluxes, times, bands_ini, bands_end = obj
+            obj_doc_list = []
+            for param in new_parameters:
+                win, wl, q, alpha, q_symbol, tol, mean_bp, num_reduction, threshold, bop_size, _alpha_size_by_quantity, _id = param
+                doc, _dropped_count = generate_multivariate_text(fluxes, times, bands_ini, bands_end, n_bands,
+                                                                 np.array(_BANDS),
+                                                                 bop_size,
+                                                                 _alpha_size_by_quantity, win, wl,
+                                                                 alpha, q, num_reduction,
+                                                                 tol, mean_bp, threshold)
+                _end = time.time()
+                if doc is not None:
+                    doc = sparse.csr_matrix(doc)
+                else:
+                    # if failed, we append an empty sparse matrix
+                    doc = sparse.csr_matrix((1, n_bands * bop_size))
+                obj_doc_list.append(doc)
+
+            obj_doc = sparse.hstack(obj_doc_list, format="csr")
+            corpus.append(obj_doc)
+            _end = time.time()
+            if record_times:
+                _records_time[i] = _end - _ini
+                _records_length[i] = len(fluxes)
+
+        m_bop = sparse.vstack(corpus, format="csr")
+
+        result_queue.put((worker_id, m_bop, _records_time, _records_length))
+    except Exception as e:
+        print("worker (id: %d) failed, error: %s" % (worker_id, e))
+
+
+def multiprocessing_extended_ibopf(dataset, parameters, n_bands, n_jobs=-1, print_time=False, record_times=True):
+
+    if n_jobs == -1:
+        n_jobs = multiprocessing.cpu_count()
+
+    if print_time:
+        print("[Extended I-BOPF featurizer]: PARALLEL PROCESSING (%d JOBS)..." % (n_jobs), end="\r")
+    process_ini_time = time.time()
+
+    # divide dataset
+    N = len(dataset)
+    sub = N // n_jobs
+    m = mp.Manager()
+    result_queue = m.Queue()
+    jobs = []
+    for i in range(n_jobs):
+        ini = i * sub
+        end = (i + 1) * sub
+        if i == n_jobs - 1:
+            end = N
+        sub_dataset = dataset[ini:end]
+        # create a different process for each sub set
+        jobs.append(mp.Process(target=worker_extended_ibopf,
+                               args=(sub_dataset, n_bands, parameters, result_queue, i, record_times)))
+        jobs[-1].start()
+
+    # launch process and wait
+    for p in jobs:
+        p.join()
+
+    # capture the results ordered by worker id (ordered)
+    _records_time_list = [None] * n_jobs
+    _records_length_list = [None] * n_jobs
+    m_bop_list = [None] * n_jobs
+    num_res = result_queue.qsize()
+    while num_res > 0:
+        worker_id, m_bop, _records_time, _records_length = result_queue.get()
+        m_bop_list[worker_id] = m_bop
+        _records_time_list[worker_id] = _records_time
+        _records_length_list[worker_id] = _records_length
+        num_res -= 1
+
+    # process results for return
+    features = sparse.vstack(m_bop_list, format="csr")
+    records_time = np.hstack(_records_time_list)
+    records_length = np.hstack(_records_length_list)
+    print(records_time.shape, records_length.shape)
+
+    records = {"time": records_time, "length": records_length}
+
+    process_end_time = time.time()
+
+    if print_time:
+        elapse = process_end_time - process_ini_time
+        print("[Extended I-BOPF featurizer]: PARALLEL PROCESSING (%d JOBS)... DONE (%.3f secs)" % (n_jobs, elapse))
+    return features, records

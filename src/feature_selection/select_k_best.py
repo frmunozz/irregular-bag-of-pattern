@@ -19,11 +19,14 @@ class SelectKTop(skl_SelectKBest):
 
 class GeneralSelectKTop(skl_SelectKBest):
 
-    def __init__(self, k, score_func, allow_nd=True, n_variables=None):
+    def __init__(self, k, score_func, allow_nd=True, n_variables=None, parameters_list=None):
         if n_variables is None:
             raise ValueError("need the n_variables")
+        if parameters_list is None:
+            raise ValueError("need the parameters list")
         self.allow_nd = False  # to use X of 3 dims ##TODO: not using?
         self.n_variables = n_variables
+        self.parameters_list = parameters_list
         super(GeneralSelectKTop, self).__init__(k=k, score_func=score_func)
 
     def fit(self, X, y):
@@ -39,7 +42,7 @@ class GeneralSelectKTop(skl_SelectKBest):
                             % (self.score_func, type(self.score_func)))
 
         self._check_params(X, y)
-        score_func_ret = self.score_func(X, y, self.n_variables)
+        score_func_ret = self.score_func(X, y, self.n_variables, self.parameters_list)
         if isinstance(score_func_ret, (list, tuple)):
             self.scores_, self.pvalues_ = score_func_ret
             self.pvalues_ = np.asarray(self.pvalues_)
@@ -53,18 +56,24 @@ class GeneralSelectKTop(skl_SelectKBest):
         return self
 
     def _get_support_mask(self):
-        # print("scores shape: ", self.scores_.shape)
-        # print("nan in scores: ", )
         mask = super(GeneralSelectKTop, self)._get_support_mask()
-        idxs = np.argsort(self.scores_, kind="mergesort")[-self.k:]
-        # print(idxs[0], self.scores_[idxs[0]], self.pvalues_[idxs[0]], idxs[-1], self.scores_[idxs[-1]], self.pvalues_[idxs[-1]], np.max(self.pvalues_))
-        # print("min selected score:", np.min(self.scores_[mask]), ", max selected score:", np.max(self.scores_[mask]))
-        # print("mask shape:", mask.shape)
+
+        bop_sizes = []
+        for param in self.parameters_list:
+            (win, wl, q, alpha, q_symbol, tol, mean_bp, num_reduction, threshold) = param
+            bop_size = (np.array(alpha).prod() + 1) ** wl
+            bop_sizes.append(bop_size)
+
         mask_extended = np.zeros(mask.shape[0] * self.n_variables, dtype=bool)
-        for i, value in enumerate(mask):
-            for j in range(self.n_variables):
-                mask_extended[i * self.n_variables + j] = value
-        # print("MASK LENGTH: ", len(mask_extended))
+
+        k = 0
+        for bsize in bop_sizes:
+            for i in range(bsize):
+                mask_val = mask[k + i]
+                for j in range(self.n_variables):
+                    mask_extended[k * self.n_variables + bsize * j + i] = mask_val
+            k += bsize
+
         return mask_extended
 
     # def transform(self, X):

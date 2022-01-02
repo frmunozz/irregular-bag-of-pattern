@@ -10,7 +10,6 @@ class LSA(TruncatedSVD):
                                   random_state=random_state, tol=tol)
         self.n_components = sc - 1
         self.sc = sc
-        self.explained_variance_ratio_ = None
 
     def fit(self, X, y=None):
         _, bop_size = X.shape

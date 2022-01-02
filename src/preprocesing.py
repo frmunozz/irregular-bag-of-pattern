@@ -34,7 +34,7 @@ def gen_dataset(df: pd.DataFrame, df_meta: pd.DataFrame):
     return res, labels
 
 
-def gen_dataset_from_h5(filename, bands, verify_input_chunks=False, num_folds=5):
+def gen_dataset_from_h5(filename, bands, verify_input_chunks=False, num_folds=5, select_survey=None):
     dataset = avocado.load(
         filename,
         verify_input_chunks=verify_input_chunks,
@@ -46,9 +46,16 @@ def gen_dataset_from_h5(filename, bands, verify_input_chunks=False, num_folds=5)
     for reference_object in tqdm(
             dataset.objects, desc="Object", dynamic_ncols=True
     ):
-        labels.append(reference_object.metadata["class"])
-        res.append(TimeSeriesObject.from_astronomical_object(reference_object).fast_format_for_numba_code(bands))
-        fold_id.append(all_folds[reference_object.metadata["object_id"]])
+        condition = True
+        if select_survey == "ddf":
+            condition = reference_object.metadata["ddf"] == 1
+        elif select_survey == "wdf":
+            condition = reference_object.metadata["ddf"] == 0
+
+        if condition:
+            labels.append(reference_object.metadata["class"])
+            res.append(TimeSeriesObject.from_astronomical_object(reference_object).fast_format_for_numba_code(bands))
+            fold_id.append(all_folds[reference_object.metadata["object_id"]])
     return np.array(res), np.array(labels), dataset.metadata, np.array(fold_id, dtype=int)
 
 

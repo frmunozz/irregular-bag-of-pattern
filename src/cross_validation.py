@@ -101,7 +101,7 @@ def cv_ssm_bopf(data, labels, wins, wls, _pipeline, cv=5, n_jobs=8,
             # except Exception as e:
             #     print("failed iteration wl=%d, win=%f, error: %s" % (wl, win, e))
     endq = time.time()
-    print("DONE (%.3f secs)" % endq - iniq)
+    print("DONE (%.3f secs)" % (endq - iniq))
     return data_mr_repr, cv_results, result_lists, best_acc, best_data
 
 

@@ -1,5 +1,5 @@
 import pandas as pd
-from .avocado_adapter import AstronomicalObject
+from avocado import AstronomicalObject
 import numpy as np
 from scipy.stats import linregress, norm
 from scipy.interpolate import interp1d
@@ -44,9 +44,12 @@ class TimeSeriesObject:
         return self.observations["mjd"], self.observations["flux"], self.observations["band"]
 
     @classmethod
-    def from_astronomical_object(cls, obj):
+    def from_astronomical_object(cls, obj, subtract_background=True):
         metadata = obj.metadata
-        observations = obj.observations
+        if subtract_background:
+            observations = obj.subtract_background()
+        else:
+            observations = obj.observations
 
         return cls(observations, **metadata)
 
