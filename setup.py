@@ -1,4 +1,5 @@
 from setuptools import setup
+import os
 
 setup(
     name='ibopf',
@@ -11,5 +12,7 @@ setup(
     license='',
     author='Francisco Muñoz',
     author_email='fjmunoz95@gmail.com',
-    description='Irregular Bag-of-Pattern Feature method'
+    description='Irregular Bag-of-Pattern Feature method',
+    data_files=[('', ['settings.json'])],
+    scripts=['scripts/' + f for f in os.listdir('scripts')],
 )
