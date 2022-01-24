@@ -11,3 +11,10 @@ Source code for the Irregular Bag-of-Pattern Feature method proposed for my thes
 - refactor source code and add documentation.
 - Compact notebooks with only the figures used in the Thesis report.
 - Add link to the final thesis report file.
+
+## on working
+
+- change the call to some settings on my code and AVOCADO code, the idea here is to use only setting file for declaring paths and file names, which will reduce the need of parameters on scripts
+- need to check further refactoring on ibopf.method and ibopf.models
+- need to define imports on __init__ to reduce complexity of package
+
