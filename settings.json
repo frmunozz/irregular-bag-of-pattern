@@ -1,0 +1,34 @@
+{
+    "user_settings_file": "user_settings.json",
+    "data_directory": "./data",
+    "avocado_directory": "./AVOCADO",
+    "ibopf_directory": "./IBOPF",
+    "ibopf_search_dir": "./IBOPF/search",
+
+    "num_folds": 5,
+    "fold_random_state": 1,
+
+    "augment_retries": 10,
+
+    "features_dir_name": "features",
+    "predictions_dir_name": "predictions",
+    "classifier_dir_name": "classifiers",
+    "compact_features_dir_name": "compact_features",
+    "sparse_features_dir_name": "sparse_features",
+    "models_features_dir_name": "models",
+    "quantity_search_dir_name": "quantity_search",
+    "resolution_search_dir_name": "resolution_search",
+
+    "features_tag": "features_v1",
+
+    "classifier_directory": "./classifiers",
+    "features_directory": "./features",
+    "predictions_directory": "./predictions",
+
+    "redshift_weighting_group_key": "ddf",
+    "redshift_weighting_min_redshift": 0.1,
+    "redshift_weighting_max_redshift": 3.0,
+    "redshift_weighting_num_bins": 10,
+    "redshift_weighting_min_bin_count": 100,
+    "redshift_weighting_redshift_key": "host_specz"
+}
