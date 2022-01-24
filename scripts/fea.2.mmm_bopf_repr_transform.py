@@ -11,7 +11,7 @@ import sys
 main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, main_path)
 from tqdm import tqdm
-from src.mmmbopf.method import MMMBOPF
+from src.ibopf.method import IBOPF
 from src.timeseries_object import TimeSeriesObject
 from sklearn.feature_selection import VarianceThreshold
 from scipy import sparse
@@ -59,7 +59,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         "config_file",
-        help="filename for method MMMBOPF configuration"
+        help="filename for method IBOPF configuration"
     )
     parser.add_argument(
         "--timestamp",
@@ -101,7 +101,7 @@ if __name__ == '__main__':
     # COMPUTE MMBOPF REPRESENTATION IN RAW FORM (WITHOUT COMPACT METHOD)
 
     # load method configuration
-    method = MMMBOPF()
+    method = IBOPF()
     method.config_from_json(os.path.join(main_path, args.config_file))
     method.n_jobs = args.n_jobs
     method.print_ssm_time = True

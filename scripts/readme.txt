@@ -4,11 +4,13 @@
 
 ======== DATA PREPROCESSING ==============
 
--. If plasticc dataset is in raw format, run:
+- remember to set the
+
+-. If plasticc dataset is in raw format, make sure to run:
 
     avocado_augment.py
 
-- in order to perform data augmentation, run:
+- To produce the same data augmentation as used by our work, run:
 
     plasticc.preprocess_augment_v3.py
 

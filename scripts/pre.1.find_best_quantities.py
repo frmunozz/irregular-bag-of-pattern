@@ -8,7 +8,7 @@ import time
 from scipy import sparse
 from src.preprocesing import gen_dataset_from_h5, rearrange_splits, get_mmbopf_plasticc_path
 from src.cross_validation import cv_smm_bopf
-from src.mmmbopf.method import MMMBOPF
+from src.ibopf.method import IBOPF
 import pickle
 import argparse
 from multiprocessing import cpu_count
@@ -333,9 +333,9 @@ if __name__ == '__main__':
 
     wins = np.logspace(np.log10(30), np.log10(mean_time + std_time * 2), 20)
     config.add(wins=wins)
-    method = MMMBOPF(alpha=alpha, C=C, lsa_kw=lsa_kwargs,
-                     doc_kw=doc_kwargs, N=N, n_jobs=n_jobs,
-                     drop_zero_variance=drop_zero_variance)
+    method = IBOPF(alpha=alpha, C=C, lsa_kw=lsa_kwargs,
+                   doc_kw=doc_kwargs, N=N, n_jobs=n_jobs,
+                   drop_zero_variance=drop_zero_variance)
 
     """ TESTING SINGLE QUANTITY CASE """
     wls = [2, 3, 4, 5, 6]

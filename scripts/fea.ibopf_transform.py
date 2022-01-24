@@ -16,7 +16,7 @@ from scipy import sparse
 import time
 import pickle
 from src.preprocesing import get_mmbopf_plasticc_path
-from src.mmmbopf import write_features, ZeroVarianceMMMBOPF, CompactMMMBOPF, MMMBOPF
+from src.ibopf import write_features, ZeroVarianceIBOPF, CompactIBOPF, IBOPF
 
 from sklearn.feature_selection import VarianceThreshold
 import pandas as pd
@@ -77,7 +77,7 @@ def sparse_features_to_compact(sparse_features, method, args):
         print("[Drop zero variance]: applying (train) zero variance model... ")
         _ini = time.time()
         # we set a new variance threshold pipeline
-        var_t = ZeroVarianceMMMBOPF(filename="%s_zero_variance_model.pkl" % args.tag)
+        var_t = ZeroVarianceIBOPF(filename="%s_zero_variance_model.pkl" % args.tag)
         var_t.load_pipeline()
         sparse_features = var_t.transform(sparse_features)
         _end = time.time()
@@ -86,7 +86,7 @@ def sparse_features_to_compact(sparse_features, method, args):
     # apply compact model
     print("[Compact features]: applying (train) compact model '%s'... " % method.C.upper())
     _ini = time.time()
-    compact = CompactMMMBOPF(filename="%s_compact_%s_model.pkl" % (args.tag, method.C.lower()), method=method.C.upper())
+    compact = CompactIBOPF(filename="%s_compact_%s_model.pkl" % (args.tag, method.C.lower()), method=method.C.upper())
     compact.load_pipeline()
 
     # fit and transform
@@ -130,7 +130,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         "config_file",
-        help="filename for method MMMBOPF configuration"
+        help="filename for method IBOPF configuration"
     )
     parser.add_argument(
         "-nj",
@@ -174,7 +174,7 @@ if __name__ == '__main__':
     main_path = get_mmbopf_plasticc_path()
     config_file = os.path.join(main_path, args.config_file)
 
-    method = MMMBOPF()
+    method = IBOPF()
     method.config_from_json(config_file)
     method.print_config()
     method.n_jobs = args.n_jobs

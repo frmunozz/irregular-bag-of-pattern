@@ -1,19 +1,10 @@
 # -*- coding: utf-8 -*-
-import pickle
-import json
-import numpy as np
-from src.feature_extraction.text.optimal_text_generation import mp_text_transform
-from src.feature_selection.select_k_best import GeneralSelectKTop
-from src.feature_selection.analysis_of_variance import manova_rank_fast
-from src.neighbors import KNeighborsClassifier as knnclassifier
-from src.feature_extraction.vector_space_model import VSM
-from src.decomposition import LSA
-from src.feature_extraction.centroid import CentroidClass
-from src.utils import AbstractCore
-from scipy import sparse
+from ..feature_selection.select_k_best import GeneralSelectKTop
+from ..feature_selection.analysis_of_variance import manova_rank_fast
+from ..feature_extraction.vector_space_model import VSM
+from ..decomposition import LSA
 from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import VarianceThreshold
-from sklearn.preprocessing import Normalizer, StandardScaler
 import avocado
 import os
 import joblib
@@ -58,7 +49,7 @@ def compact_method_pipeline(method, n_variables, n_features, classes):
     return pipeline
 
 
-class MMMBOPFPipelineProcessor(object):
+class IBOPFPipelineProcessor(object):
 
     def __init__(self, filename, settings_dir, method_dir):
         self.pipeline = None
@@ -104,20 +95,20 @@ class MMMBOPFPipelineProcessor(object):
         pass
 
 
-class CompactMMMBOPF(MMMBOPFPipelineProcessor):
+class CompactIBOPF(IBOPFPipelineProcessor):
 
     def __init__(self, filename="compact_pipeline.pkl", settings_dir="method_directory", method=None):
-        super(CompactMMMBOPF, self).__init__(filename, settings_dir, "models")
+        super(CompactIBOPF, self).__init__(filename, settings_dir, "models")
         self.method = method if method is not None else "Unknown"
 
     def set_pipeline(self, method, n_variables, n_features, classes):
         self.pipeline = compact_method_pipeline(method, n_variables, n_features, classes)
 
 
-class ZeroVarianceMMMBOPF(MMMBOPFPipelineProcessor):
+class ZeroVarianceIBOPF(IBOPFPipelineProcessor):
 
     def __init__(self, filename="zero_variance_model.pkl", settings_dir="method_directory"):
-        super(ZeroVarianceMMMBOPF, self).__init__(filename, settings_dir, "models")
+        super(ZeroVarianceIBOPF, self).__init__(filename, settings_dir, "models")
 
     def set_pipeline(self, *args, **kwargs):
         self.pipeline = VarianceThreshold()

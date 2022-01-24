@@ -14,7 +14,7 @@ from scipy import sparse
 import time
 import pickle
 from src.preprocesing import get_mmbopf_plasticc_path
-from src.mmmbopf import write_features, ZeroVarianceMMMBOPF, CompactMMMBOPF, MMMBOPF
+from src.ibopf import write_features, ZeroVarianceIBOPF, CompactIBOPF, IBOPF
 from src.avocado_adapter import *
 
 from sklearn.feature_selection import VarianceThreshold
@@ -100,7 +100,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         "config_file",
-        help="filename for method MMMBOPF configuration"
+        help="filename for method IBOPF configuration"
     )
     parser.add_argument(
         "-t",
@@ -144,7 +144,7 @@ if __name__ == '__main__':
     main_path = get_mmbopf_plasticc_path()
     config_file = os.path.join(main_path, args.config_file)
 
-    method = MMMBOPF()
+    method = IBOPF()
     method.config_from_json(config_file)
     method.n_jobs = args.n_jobs
     method.print_ssm_time = True
@@ -152,13 +152,13 @@ if __name__ == '__main__':
 
     if method.C.upper() == "LSA":
         print("LOADING ZERO VARIANCE")
-        var_t = ZeroVarianceMMMBOPF(filename=args.zerovar_filename)
+        var_t = ZeroVarianceIBOPF(filename=args.zerovar_filename)
         var_t.load_pipeline()
         print("DONE")
     else:
         var_t = None
 
-    compact = CompactMMMBOPF(filename=args.compact_filename)
+    compact = CompactIBOPF(filename=args.compact_filename)
     compact.load_pipeline()
 
     # start transforming to MMBOPF repr in chunks

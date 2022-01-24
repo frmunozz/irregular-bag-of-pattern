@@ -6,7 +6,7 @@ import numpy as np
 import time
 from src.preprocesing import gen_dataset_from_h5,  rearrange_splits, get_mmbopf_plasticc_path
 from src.cross_validation import cv_mmm_bopf,  load_bopf_from_quantity_search
-from src.mmmbopf.method import MMMBOPF
+from src.ibopf.method import IBOPF
 import argparse
 from multiprocessing import cpu_count
 import pandas as pd
@@ -92,9 +92,9 @@ def run_script(dataset_name, q_code, q_search_path, q_search_cv_results,
 
 
     # get pipeline
-    method = MMMBOPF(alpha=alpha, Q_code=q_code, C=C, lsa_kw=lsa_kwargs,
-                     doc_kw=doc_kwargs, N=N, n_jobs=n_jobs,
-                     drop_zero_variance=drop_zero_variance)
+    method = IBOPF(alpha=alpha, Q_code=q_code, C=C, lsa_kw=lsa_kwargs,
+                   doc_kw=doc_kwargs, N=N, n_jobs=n_jobs,
+                   drop_zero_variance=drop_zero_variance)
 
 
     # pre-load saved base bopf

@@ -1,27 +1,22 @@
 import pickle
 import json
 import numpy as np
-from src.feature_extraction.text.optimal_text_generation import mp_text_transform, generate_multivariate_text, get_alpha_by_quantity, multiprocessing_extended_ibopf
-from src.feature_selection.select_k_best import GeneralSelectKTop
-from src.feature_selection.analysis_of_variance import manova_rank_fast
-from src.neighbors import KNeighborsClassifier as knnclassifier
-from src.feature_extraction.vector_space_model import VSM
-from src.decomposition import LSA
-from src.feature_extraction.centroid import CentroidClass
+from ..feature_extraction.text.optimal_text_generation import mp_text_transform, generate_multivariate_text, get_alpha_by_quantity, multiprocessing_extended_ibopf
+from ..feature_selection.select_k_best import GeneralSelectKTop
+from ..feature_selection.analysis_of_variance import manova_rank_fast
+from ..neighbors import KNeighborsClassifier as knnclassifier
+from ..feature_extraction.vector_space_model import VSM
+from ..decomposition import LSA
+from ..feature_extraction.centroid import CentroidClass
 from src.utils import AbstractCore
 from .models import compact_method_pipeline
 from .utils import quantity_code_extend, _SYMBOLS
 from scipy import sparse
 from sklearn.pipeline import Pipeline
-from sklearn.feature_selection import VarianceThreshold
 from sklearn.preprocessing import Normalizer, StandardScaler
-import avocado
-import os
-import joblib
-import time
 
 
-class MMMBOPF(object):
+class IBOPF(object):
     def __init__(self,
                  alpha=4,
                  Q=None,
@@ -155,12 +150,7 @@ class MMMBOPF(object):
 
     def extended_IBOPF(self, data, record_times=False, verbose=False):
         if verbose:
-            print("computing Extended IBOPF for:")
-            print("-->R:", self.R)
-            print("-->Q:", self.Q)
-            print("-->alpha:", self.alpha)
-            print("-->C:", self.C)
-            print("-->N:", self.N)
+            self.print_config()
         parameters = self.get_parameters()
 
         features, records = multiprocessing_extended_ibopf(
@@ -194,9 +184,6 @@ class MMMBOPF(object):
         # target_k = self.N // n_variables
         manova = GeneralSelectKTop(target_k, manova_rank_fast, allow_nd=True, n_variables=n_variables)
 
-        # flattening the matrix (gives matrix of shape (m, k*b))
-        # flattening = Flatten3Dto2D()
-
         # normalize the resulting features
         normalize = Normalizer()
 
@@ -211,9 +198,6 @@ class MMMBOPF(object):
         centroid = CentroidClass(classes=classes)
 
         knn = knnclassifier(classes=classes, useClasses=True)
-        # knn = knnclassifier(classes=classes, useClasses=True, metric=flattened_ddtw,
-        #                      metric_params={"shape": (self.n, n_variables)})
-        # knn (SECOND): testing a different metric using DTW instead of euclidean distance
 
         if self.C.lower() == "lsa":
             # print("LSA")
@@ -239,19 +223,6 @@ class MMMBOPF(object):
 
     def get_compact_method_pipeline(self, n_variables, n_features, classes):
         return compact_method_pipeline(self, n_variables, n_features, classes)
-
-    # def get_classification_pipeline(self, classes):
-    #     # centroid prototype
-    #     centroid = CentroidClass(classes=classes)
-    #
-    #     knn = knnclassifier(classes=classes, useClasses=True)
-    #
-    #     pipeline = Pipeline([
-    #         ("centroid", centroid),
-    #         ("knn", knn),
-    #     ])
-    #
-    #     return pipeline
 
     def quantities_code(self, Q=None):
         if Q is None:
@@ -315,17 +286,5 @@ class MMMBOPF(object):
         print(">> ALPHA: ", self.alpha)
         print(">> STATISTICAL QUANTITIES: ", self.quantities_code(self.Q))
         print(">> LEVELS OF RESOLUTION: ", self.R)
-
-    # def train_model(self, data, n_variables, labels, output_file=None):
-    #     n_features = data.shape[1] // n_variables
-    #     classes = np.unique(labels)
-    #     model = self.get_compact_pipeline(n_variables, n_features, classes)
-    #     model.fit(data, y=labels)
-    #     if output_file is not None:
-    #         pickle.dump(model, open(output_file, "wb"))
-    #     self.model = model
-    #
-    #     return model
-
-    # def load_model(self, output_file):
-    #     self.model = pickle.load(open(output_file, "rb"))
+        print(">> COMPACT METHOD: ", self.C)
+        print(">> TARGET NUMBER OF COMPONENTS: ", self.N)

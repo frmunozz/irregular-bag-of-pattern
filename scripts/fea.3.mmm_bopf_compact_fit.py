@@ -8,7 +8,7 @@ import time
 
 main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, main_path)
-from src.mmmbopf.method import MMMBOPF
+from src.ibopf.method import IBOPF
 from src.preprocesing import get_mmbopf_plasticc_path
 import pickle
 
@@ -24,7 +24,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         "config_file",
-        help="filename for method MMMBOPF configuration"
+        help="filename for method IBOPF configuration"
     )
     parser.add_argument(
         "--timestamp",
@@ -58,7 +58,7 @@ if __name__ == '__main__':
 
     print("LOADING METHOD CONFIGURATION (%s)..." % args.config_file)
     # load method
-    method = MMMBOPF()
+    method = IBOPF()
     method.config_from_json(os.path.join(main_path, args.config_file))
     method.print_ssm_time = True
 
