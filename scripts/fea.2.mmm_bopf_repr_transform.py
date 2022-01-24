@@ -11,13 +11,13 @@ import sys
 main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, main_path)
 from tqdm import tqdm
-from src.ibopf.method import IBOPF
-from src.timeseries_object import TimeSeriesObject
+from ibopf.pipelines.method import IBOPF
+from ibopf.timeseries_object import TimeSeriesObject
 from sklearn.feature_selection import VarianceThreshold
 from scipy import sparse
 import time
 import pickle
-from src.preprocesing import get_mmbopf_plasticc_path
+from ibopf.preprocesing import get_mmbopf_plasticc_path
 
 _BANDS = ["lsstg", "lssti", "lsstr", "lsstu", "lssty", "lsstz"]
 

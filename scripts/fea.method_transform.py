@@ -9,13 +9,13 @@ import sys
 main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, main_path)
 from tqdm import tqdm
-from src.timeseries_object import TimeSeriesObject
+from ibopf.timeseries_object import TimeSeriesObject
 from scipy import sparse
 import time
 import pickle
-from src.preprocesing import get_mmbopf_plasticc_path
-from src.ibopf import write_features, ZeroVarianceIBOPF, CompactIBOPF, IBOPF
-from src.avocado_adapter import *
+from ibopf.preprocesing import get_mmbopf_plasticc_path
+from ibopf.pipelines import write_features, ZeroVarianceIBOPF, CompactIBOPF, IBOPF
+from ibopf.avocado_adapter import *
 
 from sklearn.feature_selection import VarianceThreshold
 import pandas as pd

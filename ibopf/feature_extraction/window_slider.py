@@ -1,5 +1,5 @@
 import numpy as np
-from src.timeseries_object import FastIrregularUTSObject
+from ibopf.timeseries_object import FastIrregularUTSObject
 
 
 class Slider(object):

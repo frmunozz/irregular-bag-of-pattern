@@ -8,7 +8,7 @@ import time
 
 main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, main_path)
-from src.preprocesing import get_mmbopf_plasticc_path
+from ibopf.preprocesing import get_mmbopf_plasticc_path
 import pickle
 
 

@@ -15,7 +15,7 @@ import os
 import sys
 main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, main_path)
-from src.avocado_adapter import MMMBOPFFeaturizer, Dataset, LightGBMClassifier
+from ibopf.avocado_adapter import MMMBOPFFeaturizer, Dataset, LightGBMClassifier
 
 
 if __name__ == "__main__":

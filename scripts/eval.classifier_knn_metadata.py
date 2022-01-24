@@ -7,8 +7,8 @@ import time
 from sklearn.metrics import balanced_accuracy_score
 main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, main_path)
-from src.ibopf.method import IBOPF
-from src.preprocesing import get_mmbopf_plasticc_path
+from ibopf.pipelines.method import IBOPF
+from ibopf.preprocesing import get_mmbopf_plasticc_path
 
 _BANDS = ["lsstg", "lssti", "lsstr", "lsstu", "lssty", "lsstz"]
 

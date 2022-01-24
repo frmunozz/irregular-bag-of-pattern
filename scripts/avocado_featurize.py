@@ -8,7 +8,7 @@ import argparse
 from tqdm import tqdm
 import time
 import avocado
-from src.avocado_adapter import Dataset, AVOCADOFeaturizer
+from ibopf.avocado_adapter import Dataset, AVOCADOFeaturizer
 
 
 def process_chunk(featurizer, chunk, args, verbose=True):

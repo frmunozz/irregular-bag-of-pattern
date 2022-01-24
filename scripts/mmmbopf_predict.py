@@ -8,7 +8,7 @@ import argparse
 from tqdm import tqdm
 
 import avocado
-from src.avocado_adapter import MMMBOPFFeaturizer, Dataset, LightGBMClassifier
+from ibopf.avocado_adapter import MMMBOPFFeaturizer, Dataset, LightGBMClassifier
 
 
 def process_chunk(classifier, chunk, args, verbose=True):

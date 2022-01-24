@@ -8,8 +8,8 @@ from tqdm import tqdm
 import numpy as np
 import pandas as pd
 
-# from src.classifiers import prototype_knn
-from src.avocado_adapter import AVOCADOFeaturizer, KNNClassifier, Dataset
+# from pipelines.classifiers import prototype_knn
+from ibopf.avocado_adapter import AVOCADOFeaturizer, KNNClassifier, Dataset
 import avocado
 import time
 

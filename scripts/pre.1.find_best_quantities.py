@@ -6,9 +6,9 @@ sys.path.insert(0, main_path)
 import numpy as np
 import time
 from scipy import sparse
-from src.preprocesing import gen_dataset_from_h5, rearrange_splits, get_mmbopf_plasticc_path
-from src.cross_validation import cv_smm_bopf
-from src.ibopf.method import IBOPF
+from ibopf.preprocesing import gen_dataset_from_h5, rearrange_splits, get_mmbopf_plasticc_path
+from ibopf.cross_validation import cv_smm_bopf
+from ibopf.pipelines.method import IBOPF
 import pickle
 import argparse
 from multiprocessing import cpu_count

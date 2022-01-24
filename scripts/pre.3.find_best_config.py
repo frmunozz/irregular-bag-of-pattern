@@ -4,9 +4,9 @@ main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, main_path)
 import numpy as np
 import time
-from src.preprocesing import gen_dataset_from_h5,  rearrange_splits, get_mmbopf_plasticc_path
-from src.cross_validation import cv_mmm_bopf,  load_bopf_from_quantity_search
-from src.ibopf.method import IBOPF
+from ibopf.preprocesing import gen_dataset_from_h5,  rearrange_splits, get_mmbopf_plasticc_path
+from ibopf.cross_validation import cv_mmm_bopf,  load_bopf_from_quantity_search
+from ibopf.pipelines.method import IBOPF
 import argparse
 from multiprocessing import cpu_count
 import pandas as pd

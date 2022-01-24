@@ -8,7 +8,7 @@ from ..neighbors import KNeighborsClassifier as knnclassifier
 from ..feature_extraction.vector_space_model import VSM
 from ..decomposition import LSA
 from ..feature_extraction.centroid import CentroidClass
-from src.utils import AbstractCore
+from ibopf.utils import AbstractCore
 from .models import compact_method_pipeline
 from .utils import quantity_code_extend, _SYMBOLS
 from scipy import sparse
