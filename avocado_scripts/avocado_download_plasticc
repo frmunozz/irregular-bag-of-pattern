@@ -1,0 +1,145 @@
+#!/usr/bin/env python
+"""
+Download and preprocess the PLAsTiCC dataset. We convert the CSV files that the
+PLAsTiCC dataset comes in to PyTables HDF5 files that we can work with more
+easily. We also update header keywords to match the avocado naming convention.
+"""
+import os
+import pandas as pd
+from tqdm import tqdm
+
+import avocado
+
+def update_plasticc_metadata(metadata):
+    """Update raw PLAsTiCC metadata to follow the avocado conventions.
+
+    Parameters
+    ----------
+    metadata : pandas.DataFrame
+        The raw metadata
+
+    Returns
+    -------
+    updated_metadata : pandas.DataFrame
+        The updated metadata
+    """
+    # Rename columns in the metadata table to match the avocado conventions.
+    metadata_name_map = {
+        'true_target': 'class',
+        'hostgal_photoz_err': 'host_photoz_error',
+        'hostgal_photoz': 'host_photoz',
+        'hostgal_specz': 'host_specz',
+        'ddf_bool': 'ddf',
+        'true_z': 'redshift',
+    }
+    metadata.rename(metadata_name_map, axis=1, inplace=True)
+
+    # Convert the ddf flag to a boolean
+    metadata['ddf'] = metadata['ddf'].astype(bool)
+
+    # Explicitly set a galactic/extragalactic flag.
+    metadata['galactic'] = metadata['host_photoz'] == 0.
+
+    # Update the object_id
+    new_object_id = ['plasticc_%09d' % i for i in metadata['object_id']]
+    metadata['object_id'] = new_object_id
+
+    # Drop useless columns that are just confusing and unnecessary.
+    metadata.drop(['target', 'distmod'], axis=1, inplace=True)
+
+    metadata.set_index('object_id', inplace=True)
+
+    return metadata
+
+
+def update_plasticc_observations(observations):
+    """Update raw PLAsTiCC observations to follow the avocado conventions.
+
+    Parameters
+    ----------
+    observations : pandas.DataFrame
+        The raw observations
+
+    Returns
+    -------
+    updated_observations : pandas.DataFrame
+        The updated observations
+    """
+    # Replace the passband number with a string representing the LSST band.
+    band_map = {
+        0: 'lsstu',
+        1: 'lsstg',
+        2: 'lsstr',
+        3: 'lssti',
+        4: 'lsstz',
+        5: 'lssty',
+    }
+
+    observations['band'] = observations['passband'].map(band_map)
+    observations.drop('passband', axis=1, inplace=True)
+
+    # Rename columns in the observations table to match the avocado standard.
+    observations_name_map = {
+        'mjd': 'time',
+        'flux_err': 'flux_error',
+        'detected_bool': 'detected',
+    }
+    observations.rename(observations_name_map, axis=1, inplace=True)
+
+    # Update the object_id
+    new_object_id = observations['object_id'].apply("plasticc_{:09d}".format)
+    observations['object_id'] = new_object_id
+
+    return observations
+
+
+def preprocess_observations(input_path, output_path, chunk_size=10**6):
+    """Preprocess an observations table and write it out."""
+    for chunk in tqdm(pd.read_csv(input_path, chunksize=chunk_size),
+                      desc="    %s" % os.path.basename(input_path),
+                      dynamic_ncols=True):
+        chunk = update_plasticc_observations(chunk)
+        avocado.utils.write_dataframe(output_path, chunk, 'observations',
+                                      append=True, index_chunk_column=False)
+
+
+if __name__ == "__main__":
+    basedir = avocado.settings['data_directory']
+    rawdir = os.path.join(basedir, 'plasticc_raw')
+
+    print("Downloading the PLAsTiCC dataset from zenodo...\n")
+    avocado.utils.download_zenodo("2539456", rawdir)
+
+    print("\nPreprocessing the PLAsTiCC dataset...\n")
+
+    train_path = os.path.join(basedir, 'plasticc_train.h5')
+    test_path = os.path.join(basedir, 'plasticc_test.h5')
+
+    print("Preprocessing training metadata...")
+    raw_train_metadata_path = os.path.join(
+        rawdir, 'plasticc_train_metadata.csv.gz')
+    train_metadata = pd.read_csv(raw_train_metadata_path)
+    train_metadata = update_plasticc_metadata(train_metadata)
+    avocado.utils.write_dataframe(train_path, train_metadata, 'metadata',
+                                  overwrite=True)
+
+    print("Preprocessing test metadata...")
+    raw_test_metadata_path = os.path.join(
+        rawdir, 'plasticc_test_metadata.csv.gz')
+    test_metadata = pd.read_csv(raw_test_metadata_path)
+    test_metadata = update_plasticc_metadata(test_metadata)
+    avocado.utils.write_dataframe(test_path, test_metadata, 'metadata',
+                                  overwrite=True)
+
+    print("Preprocessing training observations...")
+    raw_train_observations_path = os.path.join(
+        rawdir, 'plasticc_train_lightcurves.csv.gz')
+    preprocess_observations(raw_train_observations_path, train_path)
+
+    print("Preprocessing test observations...")
+    for test_idx in range(1, 12):
+        raw_test_observations_path = os.path.join(
+            rawdir, 'plasticc_test_lightcurves_%02d.csv.gz' % test_idx)
+        preprocess_observations(raw_test_observations_path, test_path)
+
+    print("\nDone!")

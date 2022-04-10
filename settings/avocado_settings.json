@@ -1,0 +1,9 @@
+{
+    "data_directory": "./data/plasticc/data",
+
+    "features_directory": "./data/plasticc/AVOCADO/features",
+    "features_tag": "features_v1",
+
+    "classifier_directory": "./data/plasticc/AVOCADO/classifiers",
+    "predictions_directory": "./data/plasticc/AVOCADO/predictions"
+}

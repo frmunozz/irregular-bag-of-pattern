@@ -14,9 +14,7 @@ from avocado.utils import logger
 import time
 from tqdm import tqdm
 from .timeseries_object import TimeSeriesObject
-
-
-settings = avocado.settings
+from .settings import settings
 
 
 class PlasticcAugmentor(avocado.plasticc.PlasticcAugmentor):
@@ -130,7 +128,7 @@ class MMMBOPFFeaturizer(avocado.plasticc.PlasticcFeaturizer):
             return sparse_data
 
 
-def get_classifier_path(name, settings_dir="classifier_directory"):
+def get_classifier_path(name, method="IBOPF"):
     """Get the path to where a classifier should be stored on disk
 
     Parameters
@@ -138,20 +136,20 @@ def get_classifier_path(name, settings_dir="classifier_directory"):
     name : str
         The unique name for the classifier.
     """
-    classifier_directory = settings[settings_dir]
+    classifier_directory = settings[method]["classifier_directory"]
     classifier_path = os.path.join(classifier_directory, "classifier_%s.pkl" % name)
 
     return classifier_path
 
 
 class Classifier(avocado_classifier, ABC):
-    def __init__(self, name, settings_dir="classifier_directory"):
+    def __init__(self, name, method="IBOPF"):
         super(Classifier, self).__init__(name)
-        self.settings_dir = settings_dir
+        self.method = method
 
     @property
     def path(self):
-        return get_classifier_path(self.name, settings_dir=self.settings_dir)
+        return get_classifier_path(self.name, method=self.method)
 
 
 class LightGBMClassifier(avocado.LightGBMClassifier):
@@ -161,20 +159,21 @@ class LightGBMClassifier(avocado.LightGBMClassifier):
                  featurizer,
                  class_weights=None,
                  weighting_function=avocado.evaluate_weights_flat,
-                 settings_dir="classifier_directory",
                  use_existing_features=False):
 
         super(LightGBMClassifier, self).__init__(name,
                                                  featurizer,
                                                  class_weights=class_weights,
                                                  weighting_function=weighting_function)
-
-        self.settings_dir = settings_dir
+        method = "IBOPF"
+        if isinstance(featurizer, AVOCADOFeaturizer):
+            method = "AVOCADO"
+        self.method = method
         self.use_existing_features = use_existing_features
 
     @property
     def path(self):
-        return get_classifier_path(self.name, settings_dir=self.settings_dir)
+        return get_classifier_path(self.name, method=self.method)
 
     def write(self, overwrite=False):
         """Write a trained classifier to disk
@@ -208,7 +207,7 @@ class LightGBMClassifier(avocado.LightGBMClassifier):
             pickle.dump(self, output_file)
 
     @classmethod
-    def load(cls, name, settings_dir="classifier_directory"):
+    def load(cls, name, method="IBOPF"):
         """Load a classifier that was previously saved to disk
 
         Parameters
@@ -218,7 +217,7 @@ class LightGBMClassifier(avocado.LightGBMClassifier):
         """
         import pickle
 
-        path = get_classifier_path(name, settings_dir=settings_dir)
+        path = get_classifier_path(name, method=method)
 
         # Write the classifier to a pickle file
         with open(path, "rb") as input_file:
@@ -387,8 +386,7 @@ class Dataset(avocado.Dataset):
                  objects=None,
                  chunk=None,
                  num_chunks=None,
-                 object_class=avocado.AstronomicalObject,
-                 predictions_dir="predictions_directory"):
+                 object_class=avocado.AstronomicalObject):
 
         super(Dataset, self).__init__(
             name,
@@ -398,8 +396,61 @@ class Dataset(avocado.Dataset):
             chunk=chunk,
             num_chunks=num_chunks,
             object_class=object_class)
-        self.predictions_dir = predictions_dir
+        self.method = None
         self.records = None
+
+    def set_method(self, method):
+        self.method = method
+
+    @property
+    def path(self):
+        """Return the path to where this dataset should lie on disk"""
+        data_directory = settings["data_directory"]
+        data_path = os.path.join(data_directory, self.name + ".h5")
+
+        return data_path
+
+    def get_raw_features_path(self, tag=None):
+        """(copy from avocado to update new settings)
+        Return the path to where the raw features for this dataset should
+        lie on disk
+
+        Parameters
+        ----------
+        tag : str (optional)
+            The version of the raw features to use. By default, this will use
+            settings['features_tag'].
+        """
+        if tag is None:
+            tag = settings["features_tag"]
+
+        features_directory = settings[self.method]["features_directory"]
+
+        features_filename = "%s_%s.h5" % (tag, self.name)
+        features_path = os.path.join(features_directory, features_filename)
+
+        return features_path
+
+    def get_models_path(self, tag=None):
+        """(copy from avocado to update new settings)
+        Return the path to where the models for this dataset should lie on
+        disk
+
+        Parameters
+        ----------
+        tag : str (optional)
+            The version of the features/model to use. By default, this will use
+            settings['features_tag'].
+        """
+        if tag is None:
+            tag = settings[self.method]["features_tag"]
+
+        features_directory = settings[self.method]["features_directory"]
+
+        models_filename = "models_%s_%s.h5" % (tag, self.name)
+        models_path = os.path.join(features_directory, models_filename)
+
+        return models_path
 
     def get_predictions_path(self, classifier=None):
 
@@ -412,7 +463,7 @@ class Dataset(avocado.Dataset):
             classifier_name = classifier.name
 
         filename = "predictions_%s_%s.h5" % (self.name, classifier_name)
-        predictions_path = os.path.join(settings[self.predictions_dir], filename)
+        predictions_path = os.path.join(settings[self.method]["predictions_directory"], filename)
 
         return predictions_path
 
@@ -430,7 +481,7 @@ class Dataset(avocado.Dataset):
         raw_features : pandas.DataFrame
             The extracted raw features.
         """
-        features_directory = os.path.join(settings["method_directory"], "compact_features")
+        features_directory = settings[self.method]["compact_features_directory"]
 
         # features_compact_LSA_plasticc_augment_v3
         features_filename = "%s_%s.h5" % (features_tag, self.name)
@@ -450,7 +501,7 @@ class Dataset(avocado.Dataset):
 
     @classmethod
     def load(cls, name, metadata_only=False, chunk=None, num_chunks=None,
-             object_class=avocado.AstronomicalObject, predictions_dir="predictions_directory",
+             object_class=avocado.AstronomicalObject,
              **kwargs):
         """Load a dataset that has been saved in HDF5 format in the data
                 directory.
@@ -498,7 +549,7 @@ class Dataset(avocado.Dataset):
 
         # Create a Dataset object
         dataset = cls(name, *dataframes, chunk=chunk, num_chunks=num_chunks,
-                      object_class=object_class, predictions_dir=predictions_dir)
+                      object_class=object_class)
 
         return dataset
 

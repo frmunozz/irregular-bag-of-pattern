@@ -1,0 +1,16 @@
+{
+    "user_settings_file": "ibopf_settings.json",
+
+    "data_directory": "./data/plasticc/data",
+
+    "sparse_features_directory": "./data/plasticc/IBOPF/sparse_features",
+    "compact_features_directory": "./data/plasticc/IBOPF/compact_features",
+    "models_directory": "./data/plasticc/IBOPF/models",
+    "features_tag": "features_v1",
+
+    "resolution_search_directory": "./data/plasticc/IBOPF/resolution_search",
+    "quantity_search_directory": "./data/plasticc/IBOPF/quantity_search",
+
+    "classifier_directory": "./data/plasticc/IBOPF/classifiers",
+    "predictions_directory": "./data/plasticc/IBOPF/predictions"
+}
