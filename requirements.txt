@@ -12,3 +12,4 @@ tqdm
 numba
 statsmodels
 jupyterlab
+umap-learn

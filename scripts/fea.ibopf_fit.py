@@ -2,22 +2,16 @@
 
 import argparse
 import numpy as np
-
 import avocado
-
 import os
-import sys
-main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, main_path)
 from tqdm import tqdm
-from ibopf.timeseries_object import TimeSeriesObject
 from scipy import sparse
 import time
-import pickle
-from ibopf.preprocesing import get_mmbopf_plasticc_path
+from ibopf.preprocesing import get_ibopf_plasticc_path
 from ibopf.pipelines import write_features, ZeroVarianceIBOPF, CompactIBOPF, IBOPF
+from ibopf.avocado_adapter import Dataset
+from ibopf.settings import settings
 
-from sklearn.feature_selection import VarianceThreshold
 import pandas as pd
 
 
@@ -42,7 +36,7 @@ def process_chunk_sparse_features(chunk, method, args):
     print(" ")
     print("Loading dataset (Chunk %d)... " % chunk, end="")
     _ini = time.time()
-    dataset = avocado.load(args.dataset, metadata_only=False,
+    dataset = Dataset.load(args.dataset, metadata_only=False,
                            chunk=chunk, num_chunks=args.num_chunks)
     _end = time.time()
     print("%d AstronomicalObjects loaded (Time: %.3f secs)" % (len(dataset.objects), _end - _ini))
@@ -71,8 +65,8 @@ def process_chunk_sparse_features(chunk, method, args):
 
 def sparse_features_to_compact(sparse_features, data_labels, method, args):
 
-    # apply drop zero variance only if is LSA
-    if method.C.upper() == "LSA":
+    # apply drop zero variance only if is not MANOVA
+    if method.C.upper() != "MANOVA":
         print("[Drop zero variance]: applying (train) zero variance model... ")
         _ini = time.time()
         # we set a new variance threshold pipeline
@@ -87,7 +81,7 @@ def sparse_features_to_compact(sparse_features, data_labels, method, args):
     # apply compact model
     print("[Compact features]: applying (train) compact model '%s'... " % method.C.upper())
     _ini = time.time()
-    compact = CompactIBOPF(filename="%s_compact_%s_model.pkl" % (args.tag, method.C.lower()), method=method.C.upper())
+    compact = CompactIBOPF(filename="%s_compact_%s_%d_model.pkl" % (args.tag, method.C.lower(), method.N), method=method.C.upper())
 
     n_variables = len(_BANDS)
     n_features = sparse_features.shape[1]
@@ -97,7 +91,8 @@ def sparse_features_to_compact(sparse_features, data_labels, method, args):
     compact.set_pipeline(method, n_variables, n_features, classes)
 
     # fit and transform
-    compact_features = compact.fit_transform(sparse_features, data_labels)
+    compact.fit(sparse_features, y=data_labels)
+    compact_features = compact.transform(sparse_features)
 
     if method.C == "MANOVA":
         compact_features = compact_features.toarray()
@@ -159,10 +154,11 @@ if __name__ == '__main__':
     parser.add_argument("--load_sparse", action='store_true')
     parser.add_argument("--sparse_only", action='store_true')
     args = parser.parse_args()
+    print("start script")
     main_ini = time.time()
 
     # load method configuration
-    main_path = get_mmbopf_plasticc_path()
+    main_path = get_ibopf_plasticc_path()
     config_file = os.path.join(main_path, args.config_file)
 
     method = IBOPF()
@@ -180,7 +176,7 @@ if __name__ == '__main__':
 
         print("Loading dataset metadata full... ", end="")
         _ini = time.time()
-        dataset = avocado.load(args.dataset, metadata_only=True)
+        dataset = Dataset.load(args.dataset, metadata_only=True)
         _end = time.time()
         print("%d Objects metadata loaded (Time: %.3f secs)" % (dataset.metadata.values.shape[0], _end - _ini))
 
@@ -217,8 +213,10 @@ if __name__ == '__main__':
             object_ids = np.hstack(object_ids)
 
     if not args.sparse_only:
-        for C in ["LSA", "MANOVA"]:
+        # for C in ["LSA", "MANOVA", "UMAP", "PACMAP"]:
+        for C in ["UMAP", "PACMAP"]:
             method.C = C
+            method.N = 3  # 3, 6, 11, 16, 31
             compact_features = sparse_features_to_compact(sparse_features, data_labels, method, args)
 
             print("[Save %s compact features]: transforming %s compact data to AVOCADO format and save... " % (
@@ -236,7 +234,7 @@ if __name__ == '__main__':
     main_end = time.time()
 
     try:
-        out_path = avocado.settings["method_directory"]
+        out_path = settings["IBOPF"]["directory"]
         f = open(os.path.join(out_path, "log.txt"), "a+")
         f.write("++++++++++++++++++++++++++++++++\n")
         f.write("script_name: fea.method_fit.py\n")

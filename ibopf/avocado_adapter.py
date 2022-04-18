@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import avocado
 from avocado.classifier import Classifier as avocado_classifier
-from avocado.features import Featurizer as avocado_featurizer
 from abc import ABC
 from scipy.special import erf
 from .neighbors import KNeighborsClassifier as knnclassifier
@@ -398,6 +397,7 @@ class Dataset(avocado.Dataset):
             object_class=object_class)
         self.method = None
         self.records = None
+        self.sparse_features = None
 
     def set_method(self, method):
         self.method = method
@@ -410,7 +410,7 @@ class Dataset(avocado.Dataset):
 
         return data_path
 
-    def get_raw_features_path(self, tag=None):
+    def get_raw_features_path(self, tag=None, dir_key="features_directory"):
         """(copy from avocado to update new settings)
         Return the path to where the raw features for this dataset should
         lie on disk
@@ -420,11 +420,12 @@ class Dataset(avocado.Dataset):
         tag : str (optional)
             The version of the raw features to use. By default, this will use
             settings['features_tag'].
+        dir_key : str (optional)
         """
         if tag is None:
             tag = settings["features_tag"]
 
-        features_directory = settings[self.method]["features_directory"]
+        features_directory = settings[self.method][dir_key]
 
         features_filename = "%s_%s.h5" % (tag, self.name)
         features_path = os.path.join(features_directory, features_filename)
@@ -498,6 +499,26 @@ class Dataset(avocado.Dataset):
         print("raw compact features shape:", self.raw_features.values.shape)
 
         return self.raw_features
+
+    def load_sparse_features(self, features_tag, **kwargs):
+        features_directory = settings[self.method]["sparse_features_directory"]
+
+        # features_v3_LSA_plasticc_augment_v3.h5
+        features_filename = "%s_%s.h5" % (features_tag, self.name)
+        features_path = os.path.join(features_directory, features_filename)
+
+        self.raw_features = avocado.read_dataframe(
+            features_path,
+            "features",
+            chunk=self.chunk,
+            num_chunks=self.num_chunks,
+            **kwargs
+        )
+
+        print("raw sparse features shape:", self.raw_features.values.shape)
+
+        return self.raw_features
+
 
     @classmethod
     def load(cls, name, metadata_only=False, chunk=None, num_chunks=None,

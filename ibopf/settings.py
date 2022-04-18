@@ -16,7 +16,7 @@ def load_settings():
     package_root_directory = dirname(dirname(os.path.abspath(__file__)))
 
     # First, load the default settings
-    default_path = os.path.join(package_root_directory, "settings/settings.json")
+    default_path = os.path.join(package_root_directory, "settings.json")
     settings = json.load(open(default_path))
 
     # Next, override with user settings if exists
@@ -27,21 +27,17 @@ def load_settings():
         # No user settings available. Just use the defaults.
         pass
     else:
-        settings.update(user_settings)
-
-    # then, load the avocado and ibopf settings on different dictionaries
-    if settings["avocado_settings"] == "default":
-        settings["AVOCADO"] = json.load(open(os.path.join(package_root_directory, "settings/avocado_settings.json")))
-    else:
-        settings["AVOCADO"] = json.load(open(settings["avocado_settings"]))
-
-    if settings["ibopf_settings"] == "default":
-        settings["IBOPF"] = json.load(open(os.path.join(package_root_directory, "settings/ibopf_settings.json")))
-    else:
-        settings["IBOPF"] = json.load(open(settings["ibopf_settings"]))
-
+        for k, v in user_settings.items():
+            if k not in settings.keys():
+                continue
+            if isinstance(v, dict):
+                for k2, v2 in v.items():
+                    if k2 not in settings[k].keys():
+                        continue
+                    settings[k][k2] = v2
+            else:
+                settings[k] = v
     return settings
-
 
 settings = load_settings()
 

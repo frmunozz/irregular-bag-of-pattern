@@ -5,16 +5,16 @@ import avocado
 from tqdm import tqdm
 from sklearn.model_selection import StratifiedKFold
 from avocado.utils import AvocadoException
-from avocado.settings import settings
 import os
+from .settings import settings
 
 
 def get_avocado_settings(name):
     return settings[name]
 
 
-def get_mmbopf_plasticc_path():
-    directory = os.path.join(get_avocado_settings("method_directory"))
+def get_ibopf_plasticc_path():
+    directory = settings["IBOPF"]["directory"]
     if not os.path.exists(directory):
         os.mkdir(directory)
 

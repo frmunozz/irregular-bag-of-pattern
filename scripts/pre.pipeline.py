@@ -5,7 +5,7 @@ import argparse
 import time
 main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, main_path)
-from ibopf.preprocesing import get_mmbopf_plasticc_path
+from ibopf.preprocesing import get_ibopf_plasticc_path
 
 
 def call1(args, C, timestamp):
@@ -44,7 +44,7 @@ def execute_pipleline(args, timestamp):
     if args.alpha ** args.max_power <= 4 ** 6:
         raise ValueError("need to specify a power higher than 4^6")
 
-    main_path = get_mmbopf_plasticc_path()
+    main_path = get_ibopf_plasticc_path()
     # quantity_search_out_path = os.path.join(main_path, "quantity_search")
     # resume_file = os.path.join(quantity_search_out_path, "quantity_search_resume.csv")
     c = args.compact_method

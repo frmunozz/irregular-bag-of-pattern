@@ -4,7 +4,7 @@ main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, main_path)
 import numpy as np
 import time
-from ibopf.preprocesing import gen_dataset_from_h5,  rearrange_splits, get_mmbopf_plasticc_path
+from ibopf.preprocesing import gen_dataset_from_h5,  rearrange_splits, get_ibopf_plasticc_path
 from ibopf.cross_validation import cv_mmm_bopf,  load_bopf_from_quantity_search
 from ibopf.pipelines.method import IBOPF
 import argparse
@@ -59,7 +59,7 @@ def check_or_create_folder(path):
 
 
 def get_files_and_folders(c, select_survey=None):
-    data_path = get_mmbopf_plasticc_path()
+    data_path = get_ibopf_plasticc_path()
 
     resolution_search_main_directory = os.path.join(data_path, "resolution_search")
     check_or_create_folder(resolution_search_main_directory)

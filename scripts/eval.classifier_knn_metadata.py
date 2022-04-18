@@ -8,7 +8,7 @@ from sklearn.metrics import balanced_accuracy_score
 main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, main_path)
 from ibopf.pipelines.method import IBOPF
-from ibopf.preprocesing import get_mmbopf_plasticc_path
+from ibopf.preprocesing import get_ibopf_plasticc_path
 
 _BANDS = ["lsstg", "lssti", "lsstr", "lsstu", "lssty", "lsstz"]
 
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     # get files and folders
     print("GETTING DIRECTORIES AND FILES...")
 
-    main_path = get_mmbopf_plasticc_path()
+    main_path = get_ibopf_plasticc_path()
     # get representation folder (plasticc/MMBOPF/representation)
     repr_directory = os.path.join(main_path, "representation")
 

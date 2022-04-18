@@ -13,7 +13,7 @@ from ibopf.timeseries_object import TimeSeriesObject
 from scipy import sparse
 import time
 import pickle
-from ibopf.preprocesing import get_mmbopf_plasticc_path
+from ibopf.preprocesing import get_ibopf_plasticc_path
 from ibopf.pipelines import write_features, ZeroVarianceIBOPF, CompactIBOPF, IBOPF
 from ibopf.avocado_adapter import *
 
@@ -141,7 +141,7 @@ if __name__ == '__main__':
     main_ini = time.time()
 
     # load method configuration
-    main_path = get_mmbopf_plasticc_path()
+    main_path = get_ibopf_plasticc_path()
     config_file = os.path.join(main_path, args.config_file)
 
     method = IBOPF()

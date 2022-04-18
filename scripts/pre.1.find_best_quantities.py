@@ -6,7 +6,7 @@ sys.path.insert(0, main_path)
 import numpy as np
 import time
 from scipy import sparse
-from ibopf.preprocesing import gen_dataset_from_h5, rearrange_splits, get_mmbopf_plasticc_path
+from ibopf.preprocesing import gen_dataset_from_h5, rearrange_splits, get_ibopf_plasticc_path
 from ibopf.cross_validation import cv_smm_bopf
 from ibopf.pipelines.method import IBOPF
 import pickle
@@ -280,7 +280,7 @@ if __name__ == '__main__':
 
     config = ConfigData()
 
-    data_path = get_mmbopf_plasticc_path()
+    data_path = get_ibopf_plasticc_path()
     out_main_path = os.path.join(data_path, "quantity_search")
     if not os.path.exists(out_main_path):
         os.mkdir(out_main_path)

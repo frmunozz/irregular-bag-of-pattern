@@ -17,7 +17,7 @@ from sklearn.feature_selection import VarianceThreshold
 from scipy import sparse
 import time
 import pickle
-from ibopf.preprocesing import get_mmbopf_plasticc_path
+from ibopf.preprocesing import get_ibopf_plasticc_path
 
 _BANDS = ["lsstg", "lssti", "lsstr", "lsstu", "lssty", "lsstz"]
 
@@ -90,7 +90,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    main_path = get_mmbopf_plasticc_path()
+    main_path = get_ibopf_plasticc_path()
     repr_directory = os.path.join(main_path, "representation")
     if not os.path.exists(repr_directory):
         os.mkdir(repr_directory)

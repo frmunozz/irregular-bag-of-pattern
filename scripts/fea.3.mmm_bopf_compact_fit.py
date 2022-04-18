@@ -9,7 +9,7 @@ import time
 main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, main_path)
 from ibopf.pipelines.method import IBOPF
-from ibopf.preprocesing import get_mmbopf_plasticc_path
+from ibopf.preprocesing import get_ibopf_plasticc_path
 import pickle
 
 
@@ -44,7 +44,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # get main path (plasticc/MMBOPF)
-    main_path = get_mmbopf_plasticc_path()
+    main_path = get_ibopf_plasticc_path()
     # get representation folder (plasticc/MMBOPF/representation)
     repr_directory = os.path.join(main_path, "representation")
     # get representation test folder (plasticc/MMBOPF/representation/plasticc_test_repr_timestamp)
