@@ -227,7 +227,7 @@ if __name__ == '__main__':
             df.index.name = "object_id"
 
             name = "%s_%s_%s.h5" % (args.tag, method.C, args.dataset)
-            write_features(name, df, settings_dir="method_directory", overwrite=True)
+            write_features(name, df, method="IBOPF", settings_dir="directory", overwrite=True)
             _end = time.time()
             print("[Save %s compact features]: Done (time: %.3f secs)" % (C, _end - _ini))
 
