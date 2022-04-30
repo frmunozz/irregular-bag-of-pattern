@@ -1,26 +1,26 @@
 {
     "user_settings_file": "user_settings.json",
     "AVOCADO": {
-        "directory": "./data/plasticc/AVOCADO",
-        "data_directory": "./data/plasticc/data",
-        "features_directory": "./data/plasticc/AVOCADO/features",
+        "directory": "AVOCADO",
+        "features_directory": "AVOCADO/features",
         "features_tag": "features_v1",
-        "classifier_directory": "./data/plasticc/AVOCADO/classifiers",
-        "predictions_directory": "./data/plasticc/AVOCADO/predictions"
+        "classifier_directory": "AVOCADO/classifiers",
+        "predictions_directory": "AVOCADO/predictions"
     },
     "IBOPF": {
-        "directory": "./data/plasticc/IBOPF",
-        "data_directory": "./data/plasticc/data",
-        "sparse_features_directory": "./data/plasticc/IBOPF/sparse_features",
-        "compact_features_directory": "./data/plasticc/IBOPF/compact_features",
-        "models_directory": "./data/plasticc/IBOPF/models",
+        "directory": "IBOPF",
+        "sparse_features_directory": "IBOPF/sparse_features",
+        "compact_features_directory": "IBOPF/compact_features",
+        "models_directory": "IBOPF/models",
         "features_tag": "features_v1",
-        "resolution_search_directory": "./data/plasticc/IBOPF/resolution_search",
-        "quantity_search_directory": "./data/plasticc/IBOPF/quantity_search",
-        "classifier_directory": "./data/plasticc/IBOPF/classifiers",
-        "predictions_directory": "./data/plasticc/IBOPF/predictions"
+        "resolution_search_directory": "IBOPF/resolution_search",
+        "quantity_search_directory": "IBOPF/quantity_search",
+        "classifier_directory": "IBOPF/classifiers",
+        "predictions_directory": "IBOPF/predictions",
+        "pipeline_config_file": "IBOPF/optimal_config_lsa.json"
     },
-    "data_directory": "./data/plasticc/data",
+    "base_path": "./data/plasticc/",
+    "data_directory": "data",
 
     "num_folds": 5,
     "fold_random_state": 1,

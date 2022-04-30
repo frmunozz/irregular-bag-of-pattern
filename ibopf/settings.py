@@ -41,4 +41,10 @@ def load_settings():
 
 settings = load_settings()
 
+def get_path(method, directory):
+    return os.path.join(settings["base_path"], settings[method][directory])
+
+def get_data_directory():
+    return os.path.join(settings["base_path"], settings["data_directory"])
+
 

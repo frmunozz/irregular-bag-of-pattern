@@ -6,9 +6,7 @@ import numpy as np
 import avocado
 import os
 import sys
-main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, main_path)
-from ibopf.avocado_adapter import MMMBOPFFeaturizer, Dataset, LightGBMClassifier
+from ibopf.avocado_adapter import IBOPFFeaturizer, AVOCADOFeaturizer, Dataset, LightGBMClassifier
 import pandas as pd
 
 

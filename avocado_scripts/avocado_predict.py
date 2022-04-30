@@ -8,15 +8,24 @@ import argparse
 from tqdm import tqdm
 
 import avocado
+import random
+from ibopf.avocado_adapter import AVOCADOFeaturizer, Dataset, LightGBMClassifier
 
 
 def process_chunk(classifier, chunk, args, verbose=True):
     # Load the dataset
     if verbose:
         print("Loading dataset...")
-    dataset = avocado.load(args.dataset, metadata_only=True, chunk=chunk,
+    dataset = Dataset.load(args.dataset, metadata_only=True, chunk=chunk,
                            num_chunks=args.num_chunks)
+    dataset.set_method("AVOCADO")
     dataset.load_raw_features()
+    if args.subset:
+        features = dataset.raw_features
+        random.seed(chunk)  # directly use the current chunk num as seed, should be ok
+        idxs = random.sample(range(features.shape[0]), features.shape[0]//10)
+        features = features.iloc[idxs]
+        dataset.raw_features = features
 
     # Generate predictions.
     if verbose:
@@ -54,11 +63,15 @@ if __name__ == "__main__":
         help='If set, only process this chunk of the dataset. This is '
         'intended to be used to split processing into multiple jobs.'
     )
+    parser.add_argument(
+        "--subset",
+        action="store_true",
+        help="activate flag if you want to predict on 1/10 of the test set (randomly selected with fixed seed)")
 
     args = parser.parse_args()
 
     # Load the classifier
-    classifier = avocado.load_classifier(args.classifier)
+    classifier = LightGBMClassifier.load(args.classifier, method="AVOCADO")
 
     if args.chunk is not None:
         # Process a single chunk

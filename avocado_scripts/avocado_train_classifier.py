@@ -9,6 +9,7 @@ import argparse
 import numpy as np
 
 import avocado
+from ibopf.avocado_adapter import AVOCADOFeaturizer, Dataset, LightGBMClassifier
 
 
 if __name__ == "__main__":
@@ -44,7 +45,8 @@ if __name__ == "__main__":
 
     # Load the dataset
     print("Loading dataset '%s'..." % args.dataset)
-    dataset = avocado.load(args.dataset, metadata_only=True)
+    dataset = Dataset.load(args.dataset, metadata_only=True)
+    dataset.set_method("AVOCADO")
 
     # Load the dataset raw features
     print("Loading raw features...")
@@ -103,9 +105,9 @@ if __name__ == "__main__":
 
     # Train the classifier
     print("Training classifier '%s'..." % args.classifier)
-    classifier = avocado.LightGBMClassifier(
+    classifier = LightGBMClassifier(
         args.classifier,
-        avocado.plasticc.PlasticcFeaturizer(),
+        AVOCADOFeaturizer(),
         class_weights=class_weights,
         weighting_function=weighting_function,
     )

@@ -13,3 +13,5 @@ numba
 statsmodels
 jupyterlab
 umap-learn
+annoy
+pacmap

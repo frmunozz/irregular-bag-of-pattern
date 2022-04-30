@@ -149,3 +149,6 @@ deprecated/
 Adeprecated/
 plasticc_unused/
 unused/
+
+# ignore user
+user_settings.json

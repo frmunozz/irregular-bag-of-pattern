@@ -13,7 +13,7 @@ from avocado.utils import logger
 import time
 from tqdm import tqdm
 from .timeseries_object import TimeSeriesObject
-from .settings import settings
+from .settings import settings, get_path, get_data_directory
 
 
 class PlasticcAugmentor(avocado.plasticc.PlasticcAugmentor):
@@ -135,7 +135,8 @@ def get_classifier_path(name, method="IBOPF"):
     name : str
         The unique name for the classifier.
     """
-    classifier_directory = settings[method]["classifier_directory"]
+    # classifier_directory = settings[method]["classifier_directory"]
+    classifier_directory = get_path(method, "classifier_directory")
     classifier_path = os.path.join(classifier_directory, "classifier_%s.pkl" % name)
 
     return classifier_path
@@ -405,7 +406,8 @@ class Dataset(avocado.Dataset):
     @property
     def path(self):
         """Return the path to where this dataset should lie on disk"""
-        data_directory = settings["data_directory"]
+        # data_directory = settings["data_directory"]
+        data_directory = get_data_directory()
         data_path = os.path.join(data_directory, self.name + ".h5")
 
         return data_path
@@ -425,7 +427,8 @@ class Dataset(avocado.Dataset):
         if tag is None:
             tag = settings["features_tag"]
 
-        features_directory = settings[self.method][dir_key]
+        # features_directory = settings[self.method][dir_key]
+        features_directory = get_path(self.method, dir_key)
 
         features_filename = "%s_%s.h5" % (tag, self.name)
         features_path = os.path.join(features_directory, features_filename)
@@ -447,6 +450,7 @@ class Dataset(avocado.Dataset):
             tag = settings[self.method]["features_tag"]
 
         features_directory = settings[self.method]["features_directory"]
+        # features_directory = get_path(self.method, "features_directory")
 
         models_filename = "models_%s_%s.h5" % (tag, self.name)
         models_path = os.path.join(features_directory, models_filename)
@@ -464,7 +468,8 @@ class Dataset(avocado.Dataset):
             classifier_name = classifier.name
 
         filename = "predictions_%s_%s.h5" % (self.name, classifier_name)
-        predictions_path = os.path.join(settings[self.method]["predictions_directory"], filename)
+        # predictions_path = os.path.join(settings[self.method]["predictions_directory"], filename)
+        predictions_path = os.path.join(get_path(self.method, "predictions_directory"), filename)
 
         return predictions_path
 
@@ -482,7 +487,9 @@ class Dataset(avocado.Dataset):
         raw_features : pandas.DataFrame
             The extracted raw features.
         """
-        features_directory = settings[self.method]["compact_features_directory"]
+        # features_directory = settings[self.method]["compact_features_directory"]
+        features_directory = get_path(self.method, "compact_features_directory")
+
 
         # features_compact_LSA_plasticc_augment_v3
         features_filename = "%s_%s.h5" % (features_tag, self.name)
@@ -501,7 +508,8 @@ class Dataset(avocado.Dataset):
         return self.raw_features
 
     def load_sparse_features(self, features_tag, **kwargs):
-        features_directory = settings[self.method]["sparse_features_directory"]
+        # features_directory = settings[self.method]["sparse_features_directory"]
+        features_directory = get_path(self.method, "sparse_features_directory")
 
         # features_v3_LSA_plasticc_augment_v3.h5
         features_filename = "%s_%s.h5" % (features_tag, self.name)
@@ -553,7 +561,8 @@ class Dataset(avocado.Dataset):
                 dataset : :class:`Dataset`
                     The loaded dataset.
                 """
-        data_directory = settings["data_directory"]
+        # data_directory = settings["data_directory"]
+        data_directory = get_data_directory()
         data_path = os.path.join(data_directory, name + ".h5")
 
         if not os.path.exists(data_path):
@@ -599,10 +608,17 @@ class Dataset(avocado.Dataset):
             raise avocado.AvocadoException(
                 "Must calculate raw features before selecting features!"
             )
+        metadata = self.metadata
+
+        if self.metadata.shape[0] != self.raw_features.shape[0]:
+            print("reducing metadata")
+            metadata = self.metadata[self.metadata.index.isin(self.raw_features.index)]
+
         try:
-            featurizer.metadata = self.metadata
+            featurizer.metadata = metadata
         except Exception as e:
-            pass
+            print("failed to set metadata on featurizer, error: %s" % e)
+
 
         features = featurizer.select_features(self.raw_features)
 

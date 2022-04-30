@@ -2,7 +2,7 @@
 import avocado
 import os
 import time
-from ..settings import settings
+from ..settings import settings, get_path
 
 
 _SYMBOLS = {
@@ -79,10 +79,10 @@ def check_file_path(path, name, overwrite=False):
 #     return features_directory
 
 
-def write_features(name, data, chunk=None, num_chunks=None, method="IBOPF",
-                   settings_dir="", check_file=True, data_records=None, features_dir="compact_features", overwrite=False):
-    main_directory = settings[method][settings_dir]
-    features_directory = os.path.join(main_directory, features_dir)
+def write_features(name, data, chunk=None, num_chunks=None, method="IBOPF", check_file=True, data_records=None, features_dir="compact_features", overwrite=False):
+    # main_directory = settings[method][settings_dir]
+    features_directory = get_path(method, features_dir)
+    # features_directory = os.path.join(main_directory, features_dir)
     if not os.path.exists(features_directory):
         os.mkdir(features_directory)
     if check_file:
