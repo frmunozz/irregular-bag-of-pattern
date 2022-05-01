@@ -131,7 +131,7 @@ class Dataset(avocado.Dataset):
             **kwargs
         )
 
-        print("raw compact features shape:", self.raw_features.values.shape)
+        # print("raw compact features shape:", self.raw_features.values.shape)
 
         return self.raw_features
 
