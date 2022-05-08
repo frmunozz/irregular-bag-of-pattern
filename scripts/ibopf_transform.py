@@ -18,8 +18,9 @@ import pickle
 from ibopf.preprocesing import get_ibopf_plasticc_path
 from ibopf.pipelines import write_features, ZeroVarianceIBOPF, CompactIBOPF, IBOPF
 from ibopf.settings import settings, get_path
-from ibopf.avocado_adapter import Dataset
+from ibopf.avocado_adapter import Dataset, AVOCADOFeaturizer
 from sklearn.feature_selection import VarianceThreshold
+from sklearn.preprocessing import StandardScaler
 import pandas as pd
 import time
 import random
@@ -86,17 +87,17 @@ def load_train_sparse(main_path, name):
 
 def sparse_features_to_compact(sparse_features, method, args, n_components, sparse_base=None):
     # apply drop zero variance only if is LSA
-    if method.C.upper() != "MANOVA":
-        print("[Drop zero variance]: applying (train) zero variance model... ")
-        _ini = time.time()
-        # we set a new variance threshold pipeline
-        var_t = ZeroVarianceIBOPF(filename="%s_zero_variance_model.pkl" % args.tag)
-        var_t.load_pipeline()
-        sparse_features = var_t.transform(sparse_features)
-        _end = time.time()
-        if sparse_base is not None:
-            sparse_base = var_t.transform(sparse_base)
-        print("[Drop zero variance]: Done (time: %.3f secs)" % (_end - _ini))
+    # if method.C.upper() != "MANOVA":
+    #     print("[Drop zero variance]: applying (train) zero variance model... ")
+    #     _ini = time.time()
+    #     # we set a new variance threshold pipeline
+    #     var_t = ZeroVarianceIBOPF(filename="%s_zero_variance_model.pkl" % args.tag)
+    #     var_t.load_pipeline()
+    #     sparse_features = var_t.transform(sparse_features)
+    #     _end = time.time()
+    #     if sparse_base is not None:
+    #         sparse_base = var_t.transform(sparse_base)
+    #     print("[Drop zero variance]: Done (time: %.3f secs)" % (_end - _ini))
 
     name_f = method.C.lower()
     min_dist = 0.1
@@ -111,6 +112,8 @@ def sparse_features_to_compact(sparse_features, method, args, n_components, spar
         metric = args.metric
     if args.densmap:
         name_f += "_densmap"
+    if args.combine_avocado:
+        name_f += "combined_avocado"
 
     # apply compact model
     print("[Compact features]: applying (train) compact model '%s'... " % method.C.upper())
@@ -162,6 +165,8 @@ def compact_models(sparse_features, object_ids, method, chunk, args, sparse_base
         metric = args.metric
     if args.densmap:
         name_f += "_densmap"
+    if args.combine_avocado:
+        name_f += "combined_avocado"
 
     f.write("%s,%d,%d,%.3f\n" % (name_f, n_components, sparse_features.shape[0], t_time))
     print("[Save %s compact features]: transforming (%d, %d) compact data to AVOCADO format and save... " % (
@@ -231,6 +236,7 @@ if __name__ == '__main__':
     parser.add_argument("--load_sparse", action='store_true')
     parser.add_argument("--sparse_only", action='store_true')
     parser.add_argument("--subset", action="store_true")
+    parser.add_argument("--combine_avocado", action="store_true")
     args = parser.parse_args()
     main_ini = time.time()
 
@@ -272,14 +278,34 @@ if __name__ == '__main__':
         for chunk in tqdm(range(args.num_chunks), desc='chunks',
                           dynamic_ncols=True):
             print(">>[chunk %d/%d]" % (chunk + 1, args.num_chunks))
+
+            dataset = Dataset.load(args.dataset, metadata_only=True, chunk=chunk, num_chunks=args.num_chunks)
+
+            if args.combine_avocado:
+                dataset.set_method("AVOCADO")
+                dataset.load_raw_features(tag="features_v1")
+                avocado_fea = dataset.select_features(AVOCADOFeaturizer(discard_metadata=True))
+                if any(avocado_fea.isna().any()):
+                    avocado_fea = avocado_fea.drop(columns=avocado_fea.columns[avocado_fea.isna().any()].tolist())
+                dataset.set_method("IBOPF")
+
             if args.load_sparse:
-                dataset = Dataset.load(args.dataset, metadata_only=True, chunk=chunk, num_chunks=args.num_chunks)
                 features = avocado.read_dataframe(filepath, "features", chunk=chunk, num_chunks=args.num_chunks)
                 assert dataset.metadata.values.shape[0] == features.values.shape[0]
                 sparse_features = sparse.csr_matrix(features.values)
                 object_ids = dataset.metadata.index.to_numpy()
             else:
                 sparse_features, _, object_ids = process_chunk_sparse_features(chunk, method, args)
+
+            sparse_split = None
+            if args.combine_avocado:
+                # import pdb
+                # pdb.set_trace()
+                # avocado_fea = StandardScaler().fit_transform(avocado_fea.values)
+                avocado_fea = sparse.csr_matrix(avocado_fea.values)
+                sparse_split = sparse_features.shape[1]
+                sparse_features = sparse.hstack([sparse_features, avocado_fea], format="csr")
+
 
             if args.subset:
                 print("get random subsamples %d -> %d" % (sparse_features.shape[0], sparse_features.shape[0]//10))

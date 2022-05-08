@@ -19,8 +19,19 @@ def process_chunk(classifier, chunk, args, verbose=True):
                            num_chunks=args.num_chunks
                            # predictions_dir="predictions_mmmbopf_directory"
                            )
+
+    if args.combine_avocado:
+        # load avocado features
+        dataset.set_method("AVOCADO")
+        dataset.load_raw_features(tag="features_v1")
+        avocado_fea = dataset.select_features(AVOCADOFeaturizer(discard_metadata=True))
+
+
     dataset.set_method("IBOPF")
     dataset.load_compact_features(features_tag=args.tag)
+
+    if args.combine_avocado:
+        dataset.raw_features = pd.merge(dataset.raw_features, avocado_fea, how="left", left_index=True, right_index=True)
 
     # Generate predictions.
     if verbose:
@@ -65,6 +76,7 @@ if __name__ == "__main__":
         type=str,
         help="Use a custom features tag for features h5 file"
     )
+    parser.add_argument("--combine_avocado", action="store_true")
 
     args = parser.parse_args()
 

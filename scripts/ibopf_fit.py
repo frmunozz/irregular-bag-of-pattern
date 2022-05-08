@@ -9,8 +9,9 @@ from scipy import sparse
 import time
 from ibopf.preprocesing import get_ibopf_plasticc_path
 from ibopf.pipelines import write_features, ZeroVarianceIBOPF, CompactIBOPF, IBOPF
-from ibopf.avocado_adapter import Dataset
+from ibopf.avocado_adapter import Dataset, AVOCADOFeaturizer
 from ibopf.settings import settings, get_path
+from sklearn.preprocessing import StandardScaler
 
 import pandas as pd
 
@@ -63,20 +64,20 @@ def process_chunk_sparse_features(chunk, method, args):
     return chunk_repr, labels, objs
 
 
-def sparse_features_to_compact(sparse_features, data_labels, method, args, n_neighbors=15):
+def sparse_features_to_compact(sparse_features, data_labels, method, args, n_neighbors=15, sparse_split=None):
 
     # apply drop zero variance only if is not MANOVA
-    if method.C.upper() != "MANOVA":
-        print("[Drop zero variance]: applying (train) zero variance model... ")
-        _ini = time.time()
-        # we set a new variance threshold pipeline
-        var_t = ZeroVarianceIBOPF(filename="%s_zero_variance_model.pkl" % args.tag)
-        var_t.set_pipeline()
-        sparse_features = var_t.fit_transform(sparse_features)
-        # save the data
-        var_t.save_pipeline(overwrite=True)
-        _end = time.time()
-        print("[Drop zero variance]: Done (time: %.3f secs)" % (_end - _ini))
+    # if method.C.upper() != "MANOVA":
+    #     print("[Drop zero variance]: applying (train) zero variance model... ")
+    #     _ini = time.time()
+    #     # we set a new variance threshold pipeline
+    #     var_t = ZeroVarianceIBOPF(filename="%s_zero_variance_model.pkl" % args.tag)
+    #     var_t.set_pipeline()
+    #     sparse_features = var_t.fit_transform(sparse_features)
+    #     # save the data
+    #     var_t.save_pipeline(overwrite=True)
+    #     _end = time.time()
+    #     print("[Drop zero variance]: Done (time: %.3f secs)" % (_end - _ini))
 
     name_f = method.C.lower()
     min_dist = 0.1
@@ -91,6 +92,8 @@ def sparse_features_to_compact(sparse_features, data_labels, method, args, n_nei
         metric = args.metric
     if args.densmap:
         name_f += "_densmap"
+    if args.combine_avocado:
+        name_f += "combined_avocado"
 
 
     # apply compact model
@@ -106,7 +109,7 @@ def sparse_features_to_compact(sparse_features, data_labels, method, args, n_nei
 
     # set the pipeline
     compact.set_pipeline(method, n_variables, n_features, classes, n_neighbors=n_neighbors,
-                         min_dist=min_dist, metric=metric, densmap=args.densmap)
+                         min_dist=min_dist, metric=metric, densmap=args.densmap, sparse_split=sparse_split)
 
     # fit and transform
     ini_compact = time.time()
@@ -178,6 +181,7 @@ if __name__ == '__main__':
     parser.add_argument("--save_sparse", action='store_true')
     parser.add_argument("--load_sparse", action='store_true')
     parser.add_argument("--sparse_only", action='store_true')
+    parser.add_argument("--combine_avocado", action="store_true")
     args = parser.parse_args()
     print("start script")
     main_ini = time.time()
@@ -192,6 +196,20 @@ if __name__ == '__main__':
     method.n_jobs = args.n_jobs
 
     # method.print_config()
+    print("Loading dataset metadata full... ", end="")
+    _ini = time.time()
+    dataset = Dataset.load(args.dataset, metadata_only=True)
+    _end = time.time()
+    print("%d Objects metadata loaded (Time: %.3f secs)" % (dataset.metadata.values.shape[0], _end - _ini))
+
+    if args.combine_avocado:
+        dataset.set_method("AVOCADO")
+        dataset.load_raw_features(tag="features_v1")
+        avocado_fea = dataset.select_features(AVOCADOFeaturizer(discard_metadata=True))
+        avocado_fea = avocado_fea.dropna(axis=1)
+        # if any(avocado_fea.isna().any()):
+            # avocado_fea = avocado_fea.drop(columns=avocado_fea.columns[avocado_fea.isna().any()].tolist())
+
 
     # load sparse repr or generate it depending on flag
     if args.load_sparse:
@@ -200,12 +218,6 @@ if __name__ == '__main__':
         # BE CAREFUL!
         name = "%s_%s_%s.h5" % (args.tag, method.C, args.dataset)
         filepath = os.path.join(main_path, "sparse_features", name)
-
-        print("Loading dataset metadata full... ", end="")
-        _ini = time.time()
-        dataset = Dataset.load(args.dataset, metadata_only=True)
-        _end = time.time()
-        print("%d Objects metadata loaded (Time: %.3f secs)" % (dataset.metadata.values.shape[0], _end - _ini))
 
         print("Loading sparse features full...", end="")
         _ini = time.time()
@@ -254,7 +266,18 @@ if __name__ == '__main__':
 
         method.C = args.compact_method
 
-        compact_features, ini_compact, end_compact = sparse_features_to_compact(sparse_features, data_labels, method, args, n_neighbors=args.n_neighbors)
+        sparse_split = None
+        if args.combine_avocado:
+            # import pdb
+            # pdb.set_trace()
+            # avocado_fea = StandardScaler().fit_transform(avocado_fea.values)
+            avocado_fea = sparse.csr_matrix(avocado_fea.values)
+            sparse_split = sparse_features.shape[1]
+            sparse_features = sparse.hstack([sparse_features, avocado_fea], format="csr")
+
+
+        compact_features, ini_compact, end_compact = sparse_features_to_compact(
+            sparse_features, data_labels, method, args, n_neighbors=args.n_neighbors, sparse_split=sparse_split)
         
         name_f = method.C
         min_dist = 0.1
@@ -269,6 +292,8 @@ if __name__ == '__main__':
             metric = args.metric
         if args.densmap:
             name_f += "_densmap"
+        if args.combine_avocado:
+            name_f += "combined_avocado"
 
         f_compacts.write("%s,%d,%d,%.3f\n" % (name_f, method.N-1, args.n_neighbors, end_compact - ini_compact))
         print("[Save %s compact features]: transforming %s compact data to AVOCADO format and save... " % (
@@ -279,6 +304,7 @@ if __name__ == '__main__':
         df.index.name = "object_id"
 
         name = "%s_%s_%d_%s.h5" % (args.tag, name_f, method.N-1, args.dataset)
+
         write_features(name, df, method="IBOPF", overwrite=True, features_dir="compact_features_directory")
         _end = time.time()
         print("[Save %s compact features]: Done (time: %.3f secs)" % (method.C, _end - _ini))

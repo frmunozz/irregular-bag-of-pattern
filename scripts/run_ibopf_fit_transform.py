@@ -123,6 +123,30 @@ def main_manova(args):
 			# we stop the experiment
 			return
 
+def main_combine(args):
+	skip = [1, 2, 3, 4, 5, 6]
+	c = 0
+	for n_components in [2, 10, 20, 30]:
+		for method in ["UMAP", "LSA"]:
+			c += 1
+			if c in skip:
+				continue
+			if method == "LSA":
+				c1, c2 = calls_lsa(n_components, args)
+			elif method == "MANOVA":
+				c1, c2 = calls_manova(n_components, args)
+			elif method == "UMAP":
+				c1, c2 = calls_umap(False, False, 100, "cosine", 0.0, n_components, args)
+
+			c1.append("--combine_avocado")
+			c2.append("--combine_avocado")
+			cc = [c1, c2]
+			ok = launch_subprocess(cc)
+			if not ok:
+				# we stop the experiment
+				return
+
+
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description=__doc__)
@@ -130,5 +154,6 @@ if __name__ == '__main__':
 	parser.add_argument("--num_chunks", default=25, type=int)
 	args = parser.parse_args()
 	# main_lsa(args)
-	main_manova(args)
+	# main_manova(args)
 	# main_umap(args)
+	main_combine(args)

@@ -17,7 +17,7 @@ base_predict = ["python", "scripts/ibopf_lgbm_predict.py", "plasticc_test", "--n
 # 	s = ["python", "scripts/ibopf_lgbm_predict.py", "plasticc_test", "--classifier", args.classifier, "--tag", tag, "--num_chunks", str(args.num_chunks)]
 # 	return s
 
-def calls_umap(classifier, tag):
+def calls(classifier, tag):
 	local_add = [
 		"--classifier", classifier, 
 		"--tag", tag]
@@ -44,7 +44,7 @@ def launch_subprocess(cc):
 	return True
 
 
-def main(args):
+def main_umap(args):
 	# umap run grid-cases (densmap, supervised, n_neighbors, metric, min_dist, n_components)
 	count = 0
 	for densmap in [False]:
@@ -64,7 +64,7 @@ def main(args):
 								name_f += "_densmap"
 							tag = "features_v3_%s_%s" % (name_f, n_components)
 
-							c1, c2 = calls_umap(args.classifier, tag)
+							c1, c2 = calls(args.classifier, tag)
 							if False:
 								cc = [c2]
 							else:
@@ -74,6 +74,20 @@ def main(args):
 							if not ok:
 								# we stop the experiment
 								return
+
+def main_combined(args):
+	for n_components in [2, 10, 20, 30]:
+		for method in ["UMAP", "LSA"]:
+			if method == "UMAP":
+				tag = "features_v3_UMAP_0.000000_cosinecombined_avocado_%d" % n_components
+			elif method == "LSA":
+				tag = "features_v3_LSAcombined_avocado_%d" % n_components
+			c1, c2 = calls(args.classifier, tag)
+			cc = [c1, c2]
+			ok = launch_subprocess(cc)
+			if not ok:
+				# we stop the experiment
+				return
 
 
 if __name__ == '__main__':
@@ -85,4 +99,5 @@ if __name__ == '__main__':
 	)
 	args = parser.parse_args()
 
-	main(args)
+	# main_umap(args)
+	main_combined(args)

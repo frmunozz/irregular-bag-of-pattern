@@ -8,6 +8,7 @@ from sklearn.neighbors import KNeighborsTransformer
 from multiprocessing import cpu_count
 from tqdm.contrib.concurrent import process_map
 from sklearn.preprocessing import StandardScaler
+from collections import defaultdict
 
 
 def get_neighbors_path(name, method="IBOPF"):
@@ -116,20 +117,22 @@ class KNNSimilaritySearch(object):
             x = self._scaler.fit_transform(x)
         return self._knn.fit(x, y=y)
 
-    def get_map_at_k(self, x, y=None, n_jobs=1, k=10):
-        if k > self.n_components:
+    def get_map_at_k(self, x, y=None, n_jobs=1, k_list=None):
+        if k_list is None:
+            k_list = [1, 5, 10, 20, 40]
+        if np.max(k_list) > self.n_components:
             raise ValueError("we cannot compute map@k for k higher than n_components")
-        self.k = k
         if self.scale:
             x = self._scaler.transform(x)
         self.dists, self.idxs = self._knn.kneighbors(x)
         self.query_labels = y
         if n_jobs == 1:
-            ap_list = []
-            for i in range(len(x)):
-                print(i, end="\r")
-                ap_list.append(self.ap_worker(i))
-            return ap_list
+            ap_computed = defaultdict(list)
+            for k in k_list:
+                self.k = k
+                for i in range(len(x)):
+                    ap_computed[k].append(self.ap_worker(i))
+            return ap_computed
         else:
             if n_jobs == -1:
                 n_jobs = cpu_count()

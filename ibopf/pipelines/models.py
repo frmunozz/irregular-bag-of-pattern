@@ -18,17 +18,17 @@ from tqdm.contrib.concurrent import process_map
 
 
 def compact_method_pipeline(method, n_variables, n_features, classes, n_neighbors=15,
-                            min_dist=0.0, metric="hellinger", densmap=False):
+                            min_dist=0.0, metric="hellinger", densmap=False, sparse_split=None):
     if method.C not in ["LSA", "lsa", "manova", "MANOVA", "UMAP", "PACMAP"]:
         raise ValueError("invalid value for C={}".format(method.C))
 
     # get log-tf-idf
     vsm = VSM(class_based=False, classes=classes, norm=method.lsa_kw["normalize"],
               use_idf=method.lsa_kw["use_idf"], smooth_idf=True, return_dense=method.C.lower() in ["umap", "pacmap"],
-              sublinear_tf=method.lsa_kw["sublinear_tf"])
+              sublinear_tf=method.lsa_kw["sublinear_tf"], sparse_split=sparse_split)
 
     # scaler
-    scaler = StandardScaler()
+    scaler = StandardScaler(with_mean=False)
 
     if method.C.lower() == "lsa":
         # latent semantic analysis
@@ -37,6 +37,7 @@ def compact_method_pipeline(method, n_variables, n_features, classes, n_neighbor
         # print("LSA")
         pipeline = Pipeline([
             ("vsm", vsm),
+            ("scaler", scaler),
             ("lsa", lsa),
         ])
         method.K = target_k2
@@ -78,17 +79,18 @@ def compact_method_pipeline(method, n_variables, n_features, classes, n_neighbor
         # - UTILIZAR DENSMAP -> probar despues de optimizar todo lo anterior
         #### muy lento y requiere de mucha ram, no se utilizara
         # - parametric umap -> utiliza encoder-decoder!
-
+        target_k2 = min(method.N, int(n_features * n_variables))
         umap_reducer = umap.UMAP(n_components=target_k2-1, n_neighbors=n_neighbors, verbose=True, random_state=42, 
                             min_dist=min_dist, metric=metric, densmap=densmap, n_jobs=8)
         pipeline = Pipeline([
             ("vsm", vsm),
-            # ("scaler", scaler),
+            ("scaler", scaler),
             ("umap", umap_reducer),
         ])
         method.K = target_k2
     elif method.C.lower() == "pacmap":
         # pacmap
+        target_k2 = min(method.N, int(n_features * n_variables))
         pacmap_reducer = PaCMAP(n_components=target_k2-1, n_neighbors=n_neighbors, MN_ratio=0.5, FP_ratio=4.0, verbose=True,
                                    random_state=42, save_tree=True)
         pipeline = Pipeline([
@@ -184,9 +186,9 @@ class CompactIBOPF(IBOPFPipelineProcessor):
         self.method = method if method is not None else "Unknown"
 
     def set_pipeline(self, method, n_variables, n_features, classes, n_neighbors=15,
-                     min_dist=0.0, metric="hellinger", densmap=False):
+                     min_dist=0.0, metric="hellinger", densmap=False, sparse_split=None):
         self.pipeline = compact_method_pipeline(method, n_variables, n_features, classes, 
-            n_neighbors=n_neighbors, min_dist=min_dist, metric=metric, densmap=densmap)
+            n_neighbors=n_neighbors, min_dist=min_dist, metric=metric, densmap=densmap, sparse_split=sparse_split)
 
 
 class ZeroVarianceIBOPF(IBOPFPipelineProcessor):

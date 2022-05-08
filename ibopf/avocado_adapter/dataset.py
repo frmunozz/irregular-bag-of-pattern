@@ -3,6 +3,7 @@ import pandas as pd
 import avocado
 from tqdm import tqdm
 from ..settings import settings, get_path, get_data_directory
+import os
 
 
 class Dataset(avocado.Dataset):
@@ -239,7 +240,7 @@ class Dataset(avocado.Dataset):
         metadata = self.metadata
 
         if self.metadata.shape[0] != self.raw_features.shape[0]:
-            print("reducing metadata")
+            # print("reducing metadata")
             metadata = self.metadata[self.metadata.index.isin(self.raw_features.index)]
 
         try:

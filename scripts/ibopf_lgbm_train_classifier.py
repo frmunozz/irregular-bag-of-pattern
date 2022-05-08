@@ -54,17 +54,27 @@ if __name__ == "__main__":
         help="Use a custom features tag for features h5 file"
     )
     parser.add_argument('--use_metadata', action='store_true')
+    parser.add_argument("--combine_avocado", action="store_true")
 
     args = parser.parse_args()
 
     # Load the dataset
     print("Loading dataset '%s'..." % args.dataset)
     dataset = Dataset.load(args.dataset, metadata_only=True)
-    dataset.set_method("IBOPF")
 
+    if args.combine_avocado:
+        # load avocado features
+        dataset.set_method("AVOCADO")
+        dataset.load_raw_features(tag="features_v1")
+        avocado_fea = dataset.select_features(AVOCADOFeaturizer(discard_metadata=True))
+
+    dataset.set_method("IBOPF")
     # Load the dataset raw features
     print("Loading raw features...")
     dataset.load_compact_features(features_tag=args.tag)
+
+    if args.combine_avocado:
+        dataset.raw_features = pd.merge(dataset.raw_features, avocado_fea, left_index=True, right_index=True)
 
     # Figure out which weightings to use.
     if args.class_weighting == 'flat':
