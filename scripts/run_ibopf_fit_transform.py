@@ -124,9 +124,9 @@ def main_manova(args):
 			return
 
 def main_combine(args):
-	skip = [1, 2, 3, 4, 5, 6]
+	skip = [1, 2, 3, 4, 5, 6, 7, 9]
 	c = 0
-	for n_components in [2, 10, 20, 30]:
+	for n_components in [2, 10, 20, 50, 100]:
 		for method in ["UMAP", "LSA"]:
 			c += 1
 			if c in skip:
@@ -147,6 +147,25 @@ def main_combine(args):
 				return
 
 
+def main_sup_umap(args):
+	for combine in [True, False]:
+		for n_components in [2]:
+			c1, c2 = calls_umap(False, True, 100, "cosine", 0.0, n_components, args)
+			if combine:
+				c1.append("--combine_avocado")
+				c2.append("--combine_avocado")
+
+			cc = [c1, c2]
+			ok = launch_subprocess(cc)
+			if not ok:
+				# we stop the experiment
+				return
+
+
+def main_simple_2d_avocado_umap():
+	call = ["python", "scripts/simple_umap_avocado_2d.py"]
+	launch_subprocess([call])
+
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description=__doc__)
@@ -156,4 +175,6 @@ if __name__ == '__main__':
 	# main_lsa(args)
 	# main_manova(args)
 	# main_umap(args)
-	main_combine(args)
+	# main_combine(args)
+	main_simple_2d_avocado_umap()
+	main_sup_umap(args)

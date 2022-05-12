@@ -76,18 +76,50 @@ def main_umap(args):
 								return
 
 def main_combined(args):
-	for n_components in [2, 10, 20, 30]:
+	skip = [1, 2, 3, 4, 5, 6, 7, 9]
+	c = 0
+	for n_components in [2, 10, 20, 50, 100]:
 		for method in ["UMAP", "LSA"]:
+			c += 1
+			if c in skip:
+				continue
 			if method == "UMAP":
 				tag = "features_v3_UMAP_0.000000_cosinecombined_avocado_%d" % n_components
 			elif method == "LSA":
 				tag = "features_v3_LSAcombined_avocado_%d" % n_components
+			else:
+				tag = None
 			c1, c2 = calls(args.classifier, tag)
 			cc = [c1, c2]
 			ok = launch_subprocess(cc)
 			if not ok:
 				# we stop the experiment
 				return
+
+
+def main_combined_post(args):
+	for n_components in [2, 10, 30, 50, 100]:
+		tag = "features_v3_LSA_%d" % n_components
+		c1, c2 = calls(args.classifier, tag)
+		c1.append("--combine_avocado")
+		c2.append("--combine_avocado")
+		cc = [c1, c2]
+		ok = launch_subprocess(cc)
+		if not ok:
+			# we stop the experiment
+			return
+
+
+def main_manova(args):
+	for n_components in [1, 10, 20, 30, 40, 50, 60]:
+		tag = "features_v3_MANOVA_%d" % n_components
+		c1, c2 = calls(args.classifier, tag)
+		cc = [c1, c2]
+		ok = launch_subprocess(cc)
+		if not ok:
+			# we stop the experiment
+			return
+
 
 
 if __name__ == '__main__':
@@ -99,5 +131,9 @@ if __name__ == '__main__':
 	)
 	args = parser.parse_args()
 
+	# un-comment the ones you want you run
 	# main_umap(args)
-	main_combined(args)
+	# main_combined(args)
+	# main_manova(args)
+	main_combined_post(args)
+

@@ -81,7 +81,7 @@ def compact_method_pipeline(method, n_variables, n_features, classes, n_neighbor
         # - parametric umap -> utiliza encoder-decoder!
         target_k2 = min(method.N, int(n_features * n_variables))
         umap_reducer = umap.UMAP(n_components=target_k2-1, n_neighbors=n_neighbors, verbose=True, random_state=42, 
-                            min_dist=min_dist, metric=metric, densmap=densmap, n_jobs=8)
+                            min_dist=min_dist, metric=metric, densmap=densmap, n_jobs=-1)
         pipeline = Pipeline([
             ("vsm", vsm),
             ("scaler", scaler),

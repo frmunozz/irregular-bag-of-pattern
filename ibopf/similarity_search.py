@@ -9,6 +9,7 @@ from multiprocessing import cpu_count
 from tqdm.contrib.concurrent import process_map
 from sklearn.preprocessing import StandardScaler
 from collections import defaultdict
+from functools import partial
 
 
 def get_neighbors_path(name, method="IBOPF"):
@@ -128,11 +129,14 @@ class KNNSimilaritySearch(object):
         self.query_labels = y
         if n_jobs == 1:
             ap_computed = defaultdict(list)
+            ap_per_class = defaultdict(partial(defaultdict, list))
             for k in k_list:
                 self.k = k
                 for i in range(len(x)):
-                    ap_computed[k].append(self.ap_worker(i))
-            return ap_computed
+                    ap_i = self.ap_worker(i)
+                    ap_computed[k].append(ap_i)
+                    ap_per_class[k][y[i]].append(ap_i)
+            return ap_computed, ap_per_class
         else:
             if n_jobs == -1:
                 n_jobs = cpu_count()
@@ -142,7 +146,7 @@ class KNNSimilaritySearch(object):
             del self.dists
             del self.idxs
             del self.query_labels
-            return r
+            return r, None
 
     def ap_worker(self, query_idx):
         dists = self.dists[query_idx]
@@ -160,8 +164,7 @@ class KNNSimilaritySearch(object):
             query_counter += 1
             if query_lbl == fit_lbls[i]:
                 true_counter += 1
-
-            ap += true_counter / query_counter
+                ap += true_counter / query_counter
 
         if true_counter == 0:
             ap = 0

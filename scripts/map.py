@@ -8,7 +8,8 @@ from ibopf.settings import get_path, settings
 import random
 import os
 from collections import defaultdict
-
+import pandas as pd
+from functools import partial
 
 
 def main(args):
@@ -59,7 +60,7 @@ def main(args):
         name += "_metadata"
 
     # similarity search
-    ss = KNNSimilaritySearch(name, n_components=np.max(k_list) + 10, metric="cosine", scale=args.scale)
+    ss = KNNSimilaritySearch(name, n_components=np.max(k_list) + 10, metric=args.metric, scale=args.scale)
 
     print("FIT NEAREST NEIGHBORS FOR %s... " % args.train_dataset, end="")
     features = dataset.select_features(featurizer)
@@ -76,6 +77,7 @@ def main(args):
     print("mAP@k FOR %s IN CHUNKS..." % (args.test_dataset))
     test_labels = np.array([])
     aps_computed = defaultdict(list)
+    aps_per_class_computed = defaultdict(partial(defaultdict, list))
     for chunk in tqdm(range(args.num_chunks), desc='Chunk',
                       dynamic_ncols=True):
         test_dataset = Dataset.load(args.test_dataset, metadata_only=True, chunk=chunk, num_chunks=args.num_chunks)
@@ -117,18 +119,28 @@ def main(args):
         if len(nan_cols):
             features_test = features_test.drop(columns=nan_cols)
         labels_test = test_dataset.metadata["class"]
-        aps_dict = ss.get_map_at_k(features_test, y=labels_test, n_jobs=1, k_list=k_list)
+        aps_dict, aps_per_class_dict = ss.get_map_at_k(features_test, y=labels_test, n_jobs=1, k_list=k_list)
         for k, v in aps_dict.items():
             aps_computed[k].extend(v)
+        for k1, sub_dict in aps_per_class_dict.items():
+            for k2, v in sub_dict.items():
+                aps_per_class_computed[k1][k2].extend(v)
         # break
 
-    f = open(os.path.join(settings["base_path"], "map_results.csv"), "a+")
+    f = open(os.path.join(settings["base_path"], "map_results_fixed.csv"), "a+")
+    print("%s (metadata:%s) mAP@[1,5,10,20,40]" % (args.method, str(args.use_metadata)), end=" ")
     for k, aps_list in aps_computed.items():
-        print("::::::::::::::::::::::::::::::::::::::::::::::")
         map_val = np.array(aps_list).mean()
-        print("%s (metadata:%s) mAP@%d : %.2f" % (args.method, str(args.use_metadata), k, map_val))
-        print("::::::::::::::::::::::::::::::::::::::::::::::")
-        f.write("%s,%s,%s,%s,%d,%.2f\n" % (args.method, str(args.use_metadata), args.metric, str(args.scale), k, map_val))
+        print(map_val, end=" ")
+        f.write("%s,%s,%s,%s,%s,%d,%.2f\n" % (args.method, args.tag, str(args.use_metadata), args.metric, str(args.scale), k, map_val))
+    f.close()
+
+    f = open(os.path.join(settings["base_path"], "map_results_fixed_per_class.csv"), "a+")
+    for k1, sub_dict in aps_per_class_computed.items():
+        for k2, aps_list in sub_dict.items():
+            map_val = np.array(aps_list).mean()
+            f.write("%s,%s,%s,%s,%s,%d,%d,%.2f\n" % (
+            args.method, args.tag, str(args.use_metadata), args.metric, str(args.scale), k2, k1, map_val))
     f.close()
     print("Done!")
 
