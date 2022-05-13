@@ -55,6 +55,8 @@ if __name__ == "__main__":
     )
     parser.add_argument('--use_metadata', action='store_true')
     parser.add_argument("--combine_avocado", action="store_true")
+    parser.add_argument("--only_var_stars", action="store_true")
+    parser.add_argument("--only_supernova", action="store_true")
 
     args = parser.parse_args()
 
@@ -125,6 +127,16 @@ if __name__ == "__main__":
 
         print("Dropped %d/%d objects!" % (np.sum(~keep_mask), len(keep_mask)))
         print("!!!!!")
+
+    # drop classes
+    classes_to_drop = None
+    if args.only_var_stars:
+        classes_to_drop = [16, 53, 92]
+    elif args.only_supernova:
+        classes_to_drop = [42, 52, 62, 64, 67, 90, 95]
+
+    if classes_to_drop is not None:
+        dataset.drop_classes(classes_to_drop)
 
     # Train the classifier
     print("Training classifier '%s'..." % args.classifier)

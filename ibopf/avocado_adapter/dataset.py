@@ -136,6 +136,10 @@ class Dataset(avocado.Dataset):
 
         return self.raw_features
 
+    def drop_classes(self, classes):
+        self.metadata = self.metadata[~self.metadata["class"].isin(classes)]
+        self.raw_features = self.raw_features[self.raw_features.index.isin(self.metadata.index)]
+
     def load_sparse_features(self, features_tag, **kwargs):
         # features_directory = settings[self.method]["sparse_features_directory"]
         features_directory = get_path(self.method, "sparse_features_directory")

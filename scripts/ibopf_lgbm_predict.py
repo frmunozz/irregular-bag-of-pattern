@@ -6,9 +6,9 @@ main_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, main_path)
 import argparse
 from tqdm import tqdm
-
+import pandas as pd
 import avocado
-from ibopf.avocado_adapter import MMMBOPFFeaturizer, Dataset, LightGBMClassifier
+from ibopf.avocado_adapter import MMMBOPFFeaturizer, Dataset, LightGBMClassifier, AVOCADOFeaturizer
 
 
 def process_chunk(classifier, chunk, args, verbose=True):
@@ -32,6 +32,16 @@ def process_chunk(classifier, chunk, args, verbose=True):
 
     if args.combine_avocado:
         dataset.raw_features = pd.merge(dataset.raw_features, avocado_fea, how="left", left_index=True, right_index=True)
+
+    # drop classes
+    classes_to_drop = None
+    if args.only_var_stars:
+        classes_to_drop = [16, 53, 92]
+    elif args.only_supernova:
+        classes_to_drop = [42, 52, 62, 64, 67, 90, 95]
+
+    if classes_to_drop is not None:
+        dataset.drop_classes(classes_to_drop)
 
     # Generate predictions.
     if verbose:
@@ -77,6 +87,8 @@ if __name__ == "__main__":
         help="Use a custom features tag for features h5 file"
     )
     parser.add_argument("--combine_avocado", action="store_true")
+    parser.add_argument("--only_var_stars", action="store_true")
+    parser.add_argument("--only_supernova", action="store_true")
 
     args = parser.parse_args()
 
